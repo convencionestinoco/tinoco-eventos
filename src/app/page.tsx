@@ -337,8 +337,8 @@ export default function Home(){
                     <div key={v.id} onClick={()=>openSlot(ds,v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{borderBottom:vi<VENUES.length-1?`2.5px solid ${B.accent}30`:"none",background:vi%2===0?"transparent":B.warm}}
                       onMouseEnter={e=>(e.currentTarget.style.background=B.light)} onMouseLeave={e=>(e.currentTarget.style.background=vi%2===0?"transparent":B.warm)}>
                       <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:`${B.secondary}aa`}}>{v.icon}</span>
-                        {se.map(evt=>{const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;return <span key={evt.id+"tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{evt.status==="confirmado"?"CONF":"COT"}</span>})}
+                        <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:`${B.secondary}aa`}}>{v.icon} {v.label}</span>
+                        {se.map(evt=>{const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;return <span key={evt.id+"tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{evt.status==="confirmado"?"CONFIRMADO":"COTIZACIÓN"}</span>})}
                       </div>
                       {se.map(evt=>{const bgC=evt.status==="confirmado"?"#1d4ed8":"#c2410c";
                         return <div key={evt.id} onClick={e=>evtClick(e,evt)} className="rounded px-1 py-0.5 text-[8px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{background:bgC,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
