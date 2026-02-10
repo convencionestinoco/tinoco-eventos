@@ -1,4 +1,3 @@
-```typescript
 export interface Advance {
   id?: string;
   event_id?: string;
@@ -20,5 +19,4 @@ export interface EventData {
   amount: number;
   advances: Advance[];
 }
-```
 
