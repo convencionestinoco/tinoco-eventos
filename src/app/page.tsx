@@ -190,8 +190,9 @@ function EventDetail({event,onEdit,onDelete}:{event:EventData;onEdit:(e:EventDat
 // ════════════ MAIN APP ════════════
 export default function Home(){
   const today=new Date();
-  const[month,setMonth]=useState(today.getFullYear()===2026?today.getMonth():0);
-  const year=2026;
+  const[month,setMonth]=useState(today.getMonth());
+  const[year,setYear]=useState(today.getFullYear());
+  const[selectedDay,setSelectedDay]=useState(today.getDate());
   const[events,setEvents]=useState<EventData[]>([]);
   const[loading,setLoading]=useState(true);
   const[modalOpen,setModalOpen]=useState(false);
@@ -208,8 +209,32 @@ export default function Home(){
   useEffect(()=>{loadEvents()},[loadEvents]);
 
   const dIM=dim(year,month),fD=fdow(year,month);
-  const prev=()=>setMonth(m=>m===0?11:m-1);
-  const next=()=>setMonth(m=>m===11?0:m+1);
+
+  // Clamp selectedDay when month changes
+  useEffect(()=>{const mx=dim(year,month);if(selectedDay>mx)setSelectedDay(mx)},[year,month,selectedDay]);
+
+  // Navigation helpers
+  const goMonth=(offset:number)=>{
+    let m=month+offset,y=year;
+    if(m<0){m=11;y--}else if(m>11){m=0;y++}
+    setMonth(m);setYear(y);
+  };
+  const goDay=(offset:number)=>{
+    const d=new Date(year,month,selectedDay+offset);
+    setYear(d.getFullYear());setMonth(d.getMonth());setSelectedDay(d.getDate());
+  };
+  const goWeek=(offset:number)=>goDay(offset*7);
+
+  const prev=()=>{
+    if(viewMode==="day")goDay(-1);
+    else if(viewMode==="week")goWeek(-1);
+    else goMonth(-1);
+  };
+  const next=()=>{
+    if(viewMode==="day")goDay(1);
+    else if(viewMode==="week")goWeek(1);
+    else goMonth(1);
+  };
 
   const openSlot=(d:string,v:string)=>{setSelSlot({date:d,venue:v});setEditEvt(null);setModalOpen(true);setDetEvt(null)};
   const handleSave=async(data:EventData)=>{await saveEvent(data);await loadEvents();setModalOpen(false);setEditEvt(null)};
@@ -278,9 +303,62 @@ export default function Home(){
     return cells;
   };
 
+  // Week view
+  const renderWeek=()=>{
+    // Get the Monday of the week containing selectedDay
+    const sel=new Date(year,month,selectedDay);
+    const dow=sel.getDay();
+    const mondayOffset=dow===0?-6:1-dow;
+    const monday=new Date(sel);
+    monday.setDate(sel.getDate()+mondayOffset);
+
+    const weekDays:Date[]=[];
+    for(let i=0;i<7;i++){const d=new Date(monday);d.setDate(monday.getDate()+i);weekDays.push(d)}
+
+    return(
+      <div>
+        <div className="text-center mb-4 text-base font-extrabold" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>
+          Semana del {weekDays[0].getDate()} de {MONTHS_ES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} de {MONTHS_ES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()}
+        </div>
+        <div className="grid grid-cols-7 gap-2 items-start">
+          {weekDays.map((wd,wi)=>{
+            const ds=fmtD(wd.getFullYear(),wd.getMonth(),wd.getDate());
+            const isTd=wd.getFullYear()===today.getFullYear()&&wd.getMonth()===today.getMonth()&&wd.getDate()===today.getDate();
+            return(
+              <div key={wi} className="bg-white rounded-lg overflow-hidden flex flex-col min-h-[260px]" style={{border:isTd?`2.5px solid ${B.primary}`:`1px solid ${B.accent}22`,boxShadow:isTd?`0 3px 14px ${B.primary}22`:"0 1px 3px rgba(0,0,0,.04)"}}>
+                <div className="px-2 py-2 text-center shrink-0" style={{background:isTd?B.gDark:B.warm,borderBottom:`2px solid ${B.accent}33`}}>
+                  <div className="text-[10px] font-bold uppercase" style={{color:isTd?B.gold:B.secondary}}>{DAYS_ES[wi]}</div>
+                  <div className="text-lg font-extrabold cursor-pointer" style={{color:isTd?"#fff":B.dark}} onClick={()=>{setSelectedDay(wd.getDate());setMonth(wd.getMonth());setYear(wd.getFullYear());setViewMode("day")}}>{wd.getDate()}</div>
+                  <div className="text-[9px] font-semibold" style={{color:isTd?B.gold:B.secondary}}>{MONTHS_ES[wd.getMonth()].slice(0,3)}</div>
+                </div>
+                {VENUES.map((v,vi)=>{
+                  const se=slotEvts(ds,v.id);
+                  return(
+                    <div key={v.id} onClick={()=>openSlot(ds,v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{borderBottom:vi<VENUES.length-1?`2.5px solid ${B.accent}30`:"none",background:vi%2===0?"transparent":B.warm}}
+                      onMouseEnter={e=>(e.currentTarget.style.background=B.light)} onMouseLeave={e=>(e.currentTarget.style.background=vi%2===0?"transparent":B.warm)}>
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:`${B.secondary}aa`}}>{v.icon}</span>
+                        {se.map(evt=>{const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;return <span key={evt.id+"tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{evt.status==="confirmado"?"CONF":"COT"}</span>})}
+                      </div>
+                      {se.map(evt=>{const bgC=evt.status==="confirmado"?"#1d4ed8":"#c2410c";
+                        return <div key={evt.id} onClick={e=>evtClick(e,evt)} className="rounded px-1 py-0.5 text-[8px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{background:bgC,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
+                          <span>{EVENT_TYPES.find(t=>t.value===evt.type)?.emoji}</span>
+                          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{evt.name||EVENT_TYPES.find(t=>t.value===evt.type)?.label}</span>
+                        </div>})}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
   // Day view
   const renderDay=()=>{
-    const d=new Date(year,month,today.getMonth()===month&&today.getFullYear()===year?today.getDate():1);
+    const d=new Date(year,month,selectedDay);
     const ds=fmtD(d.getFullYear(),d.getMonth(),d.getDate()),dowIdx=d.getDay()===0?6:d.getDay()-1;
     return(
       <div className="max-w-[850px] mx-auto">
@@ -332,9 +410,10 @@ export default function Home(){
       <div className="px-6 py-3 flex items-center justify-between flex-wrap gap-2.5" style={{background:"rgba(255,255,255,.85)",borderBottom:`2px solid ${B.accent}22`,backdropFilter:"blur(8px)"}}>
         <div className="flex items-center gap-2">
           <button onClick={prev} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>←</button>
-          <h2 onClick={()=>setYearView(!yearView)} className="text-xl font-extrabold min-w-[200px] text-center cursor-pointer" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>{MONTHS_ES[month]} {year}</h2>
+          <h2 onClick={()=>setYearView(!yearView)} className="text-xl font-extrabold min-w-[200px] text-center cursor-pointer" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>{viewMode==="day"?`${selectedDay} ${MONTHS_ES[month]} ${year}`:MONTHS_ES[month]} {viewMode!=="day"?year:""}</h2>
           <button onClick={next} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>→</button>
           <button onClick={()=>setYearView(!yearView)} className="px-3.5 py-1.5 rounded-lg text-xs font-semibold" style={{border:`1px solid ${B.accent}33`,background:yearView?B.gAcc:"#fff",color:yearView?"#fff":B.primary}}>{year}</button>
+          <button onClick={()=>{setYear(today.getFullYear());setMonth(today.getMonth());setSelectedDay(today.getDate())}} className="px-3.5 py-1.5 rounded-lg text-xs font-bold" style={{border:`1px solid ${B.accent}33`,background:"#fff",color:B.primary}}>Hoy</button>
         </div>
         <div className="flex gap-1 p-1 rounded-lg" style={{background:`${B.accent}15`}}>
           {[{id:"month",l:"Mes"},{id:"week",l:"Semana"},{id:"day",l:"Día"}].map(v=><button key={v.id} onClick={()=>{setViewMode(v.id);setYearView(false)}} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={{background:viewMode===v.id?"#fff":"transparent",color:viewMode===v.id?B.primary:"#64748b",boxShadow:viewMode===v.id?"0 1px 4px rgba(0,0,0,.08)":"none"}}>{v.l}</button>)}
@@ -363,6 +442,7 @@ export default function Home(){
               <div className="grid grid-cols-7 gap-2 mb-2">{DAYS_ES.map((d,i)=><div key={d} className="text-center py-2 text-[11px] font-extrabold uppercase tracking-wide" style={{color:i>=5?B.primary:B.secondary}}>{d}</div>)}</div>
               <div className="grid grid-cols-7 gap-2 items-start">{renderMonth()}</div>
             </>}
+            {viewMode==="week"&&renderWeek()}
             {viewMode==="day"&&renderDay()}
           </>
         )}
@@ -391,3 +471,4 @@ export default function Home(){
     </div>
   );
 }
+
