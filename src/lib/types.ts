@@ -1,0 +1,24 @@
+```typescript
+export interface Advance {
+  id?: string;
+  event_id?: string;
+  amount: number;
+  locked: boolean;
+}
+
+export interface EventData {
+  id?: string;
+  type: string;
+  name: string;
+  date: string;
+  venue: string;
+  time: string;
+  guests: number;
+  decoration_color: string;
+  observations: string;
+  status: 'confirmado' | 'cotizacion';
+  amount: number;
+  advances: Advance[];
+}
+```
+
