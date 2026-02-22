@@ -44,6 +44,14 @@ const INVENTORY_CATEGORIES = [
   { value: "limpieza", label: "Limpieza", icon: "🧹" },
   { value: "otros", label: "Otros", icon: "📦" },
 ];
+const INVENTORY_LOCATIONS = [
+  { value: "restaurant", label: "Restaurant", icon: "🍽️" },
+  { value: "salon", label: "Salón", icon: "🎪" },
+  { value: "primer_piso", label: "Primer Piso", icon: "🏢" },
+  { value: "almacen", label: "Almacén", icon: "🏗️" },
+  { value: "cocina", label: "Cocina", icon: "👨‍🍳" },
+  { value: "otro", label: "Otro Ambiente", icon: "✨" },
+];
 const UNITS = ["unidades", "cajas", "paquetes", "litros", "kg", "metros", "rollos", "juegos", "docenas"];
 const DAYS_ES = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
 const MONTHS_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -52,6 +60,12 @@ const B = {
   gold: "#f0ad1b", light: "#fdf3e3", warm: "#fef8f0",
   gDark: "linear-gradient(135deg,#3d1a00 0%,#6b2f0a 50%,#3d1a00 100%)",
   gAcc: "linear-gradient(135deg,#d4770a,#b8540c)",
+};
+
+// Calendar slot colors — more vibrant
+const SLOT_COLORS = {
+  confirmado: { bg: "#2563eb", text: "#fff", tag: "#dbeafe", tagText: "#1e40af", tagBorder: "#60a5fa", slotBg: "#eff6ff" },
+  cotizacion: { bg: "#ea580c", text: "#fff", tag: "#fff7ed", tagText: "#c2410c", tagBorder: "#fb923c", slotBg: "#fff7ed" },
 };
 
 function dim(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
@@ -63,7 +77,7 @@ function Modal({ open, onClose, children, title }: { open: boolean; onClose: () 
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: "rgba(61,26,0,0.5)", backdropFilter: "blur(6px)", animation: "fadeIn .2s ease" }} onClick={onClose}>
-      <div className="bg-white rounded-2xl w-[600px] max-w-[95vw] max-h-[92vh] overflow-auto" style={{ boxShadow: "0 25px 60px rgba(61,26,0,.25)", animation: "slideUp .25s ease" }} onClick={e => e.stopPropagation()}>
+      <div className="bg-white rounded-2xl w-[640px] max-w-[95vw] max-h-[92vh] overflow-auto" style={{ boxShadow: "0 25px 60px rgba(61,26,0,.25)", animation: "slideUp .25s ease" }} onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center px-6 py-4 sticky top-0 bg-white z-10 rounded-t-2xl" style={{ borderBottom: `2px solid ${B.accent}33` }}>
           <h2 className="text-lg font-bold" style={{ color: B.dark }}>{title}</h2>
           <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style={{ background: B.light, color: B.primary }}>✕</button>
@@ -110,7 +124,11 @@ function AdvanceRow({ advance, index, onUpdate, onLock }: { advance: Advance; in
 
 // ── Event Form ──
 function EventForm({ event, onSave, onClose, onDelete, dateStr, venue, events }: { event: EventData | null; onSave: (e: EventData) => void; onClose: () => void; onDelete: (id: string) => void; dateStr: string; venue: string; events: EventData[] }) {
-  const [form, setForm] = useState<EventData>(event || { type: "boda", name: "", date: dateStr, venue, time: "18:00", guests: 50, decoration_color: "", observations: "", status: "cotizacion", amount: 0, advances: [] });
+  const [form, setForm] = useState<EventData>(event || {
+    type: "boda", name: "", client_name: "", contact_number: "", proforma_number: "", contract_number: "",
+    date: dateStr, venue, time: "18:00", guests: 50, decoration_color: "", observations: "",
+    status: "cotizacion", amount: 0, advances: []
+  });
   const [saveErr, setSaveErr] = useState("");
   const [saving, setSaving] = useState(false);
   const up = (k: string, v: any) => { setForm(p => ({ ...p, [k]: v })); setSaveErr(""); };
@@ -142,6 +160,17 @@ function EventForm({ event, onSave, onClose, onDelete, dateStr, venue, events }:
         </div>
       </div>
       <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Nombre del Evento</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.name} onChange={e => up("name", e.target.value)} placeholder="Ej: Boda de María y Juan" /></div>
+
+      {/* ── NEW: Client info fields ── */}
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div><label className={lbl} style={{ color: B.primary }}>Nombre del Cliente</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.client_name} onChange={e => up("client_name", e.target.value)} placeholder="Nombre completo del cliente" /></div>
+        <div><label className={lbl} style={{ color: B.primary }}>Número de Contacto</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.contact_number} onChange={e => up("contact_number", e.target.value)} placeholder="Ej: 987 654 321" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div><label className={lbl} style={{ color: B.primary }}>N° de Proforma</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.proforma_number} onChange={e => up("proforma_number", e.target.value)} placeholder="Ej: PRF-2026-001" /></div>
+        <div><label className={lbl} style={{ color: B.primary }}>N° de Contrato</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.contract_number} onChange={e => up("contract_number", e.target.value)} placeholder="Ej: CTR-2026-001" /></div>
+      </div>
+
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div><label className={lbl} style={{ color: B.primary }}>Fecha</label><input className={inp} style={{ borderColor: `${B.accent}33`, background: B.warm }} type="date" value={form.date} readOnly /></div>
         <div><label className={lbl} style={{ color: B.primary }}>Hora Inicio</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="time" value={form.time} onChange={e => up("time", e.target.value)} /></div>
@@ -188,13 +217,20 @@ function EventDetail({ event, onEdit, onDelete }: { event: EventData; onEdit: (e
   const si = STATUS_OPTIONS.find(s => s.value === event.status) || STATUS_OPTIONS[0];
   const ta = event.advances?.reduce((s: number, a: Advance) => s + (a.amount || 0), 0) || 0;
   return (
-    <div className="min-w-[290px]">
+    <div className="min-w-[310px]">
       <div className="flex items-center gap-3 mb-3">
         <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{ background: si.color }}>{ti.emoji}</div>
         <div className="flex-1">
           <div className="font-bold text-sm" style={{ color: B.dark }}>{event.name || ti.label}</div>
           <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ background: si.bg, color: si.color, border: `1px solid ${si.border}` }}>{si.label}</span>
         </div>
+      </div>
+      {/* Client info */}
+      {event.client_name && <div className="text-xs mb-1.5" style={{ color: B.dark }}><strong style={{ color: B.primary }}>Cliente:</strong> {event.client_name}</div>}
+      {event.contact_number && <div className="text-xs mb-1.5" style={{ color: B.dark }}><strong style={{ color: B.primary }}>Contacto:</strong> {event.contact_number}</div>}
+      <div className="flex gap-2 mb-1.5 flex-wrap">
+        {event.proforma_number && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700">Proforma: {event.proforma_number}</span>}
+        {event.contract_number && <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-green-50 text-green-700">Contrato: {event.contract_number}</span>}
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm mb-3">
         {[{ l: "Fecha", v: event.date }, { l: "Hora", v: event.time }, { l: "Personas", v: String(event.guests) }, { l: "Monto", v: `S/ ${event.amount || "0.00"}` }].map(i => (
@@ -212,15 +248,16 @@ function EventDetail({ event, onEdit, onDelete }: { event: EventData; onEdit: (e
   );
 }
 
-// ── Inventory Form ──
+// ── Inventory Form (updated: removed cost_per_unit & min_stock, added location & registered_by) ──
 function InventoryForm({ item, onSave, onClose }: { item: InventoryItem | null; onSave: (i: InventoryItem) => void; onClose: () => void }) {
-  const [form, setForm] = useState<InventoryItem>(item || { name: "", category: "otros", quantity: 0, min_stock: 0, unit: "unidades", cost_per_unit: 0, notes: "" });
+  const [form, setForm] = useState<InventoryItem>(item || { name: "", category: "otros", quantity: 0, unit: "unidades", location: "salon", registered_by: "", notes: "" });
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const up = (k: string, v: any) => { setForm(p => ({ ...p, [k]: v })); setErr(""); };
 
   const handleSave = async () => {
     if (!form.name.trim()) { setErr("El nombre es obligatorio"); return; }
+    if (!form.registered_by.trim()) { setErr("Debe indicar quién registra el producto"); return; }
     setSaving(true);
     try { await onSave(form); } catch (e: any) { setErr(e.message || "Error al guardar"); }
     setSaving(false);
@@ -239,20 +276,20 @@ function InventoryForm({ item, onSave, onClose }: { item: InventoryItem | null; 
       <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Nombre del Producto</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.name} onChange={e => up("name", e.target.value)} placeholder="Ej: Sillas plegables blancas" /></div>
       <div className="grid grid-cols-2 gap-3 mb-4">
         <div><label className={lbl} style={{ color: B.primary }}>Cantidad Actual</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="number" min="0" value={form.quantity || ""} onChange={e => up("quantity", parseInt(e.target.value) || 0)} placeholder="0" /></div>
-        <div><label className={lbl} style={{ color: B.primary }}>Stock Mínimo</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="number" min="0" value={form.min_stock || ""} onChange={e => up("min_stock", parseInt(e.target.value) || 0)} placeholder="0" /></div>
-      </div>
-      <div className="grid grid-cols-2 gap-3 mb-4">
         <div><label className={lbl} style={{ color: B.primary }}>Unidad de Medida</label>
           <select className={inp} style={{ borderColor: `${B.accent}33` }} value={form.unit} onChange={e => up("unit", e.target.value)}>
             {UNITS.map(u => <option key={u} value={u}>{u.charAt(0).toUpperCase() + u.slice(1)}</option>)}
           </select>
         </div>
-        <div><label className={lbl} style={{ color: B.primary }}>Costo por Unidad (S/)</label>
-          <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">S/</span>
-            <input className={`${inp} pl-10`} style={{ borderColor: `${B.accent}33` }} type="number" min="0" step="0.01" value={form.cost_per_unit || ""} onChange={e => up("cost_per_unit", parseFloat(e.target.value) || 0)} placeholder="0.00" />
-          </div>
+      </div>
+      {/* ── NEW: Ubicación ── */}
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Ubicación del Producto</label>
+        <div className="flex flex-wrap gap-1.5">
+          {INVENTORY_LOCATIONS.map(loc => <button key={loc.value} onClick={() => up("location", loc.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ border: `2px solid ${form.location === loc.value ? B.primary : B.accent + "33"}`, background: form.location === loc.value ? B.light : "#fff", color: form.location === loc.value ? B.primary : "#64748b" }}>{loc.icon} {loc.label}</button>)}
         </div>
       </div>
+      {/* ── NEW: Registrado por ── */}
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Registrado por</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.registered_by} onChange={e => up("registered_by", e.target.value)} placeholder="Nombre de quien registra el producto" /></div>
       <div className="mb-5"><label className={lbl} style={{ color: B.primary }}>Notas</label><textarea className={`${inp} min-h-[60px] resize-y`} style={{ borderColor: `${B.accent}33` }} value={form.notes} onChange={e => up("notes", e.target.value)} placeholder="Notas adicionales del producto..." /></div>
       {err && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm font-semibold mb-3">{err}</div>}
       <div className="flex gap-2">
@@ -296,7 +333,7 @@ export default function Home() {
   const [editInvItem, setEditInvItem] = useState<InventoryItem | null>(null);
   const [invSearch, setInvSearch] = useState("");
   const [invCatFilter, setInvCatFilter] = useState("all");
-  const [invStockFilter, setInvStockFilter] = useState<"all" | "low" | "out">("all");
+  const [invLocFilter, setInvLocFilter] = useState("all");
 
   // ── Optimized: fetch events only for current month ──
   const loadMonthEvents = useCallback(async (m: number, force = false) => {
@@ -419,17 +456,17 @@ export default function Home() {
 
   const filteredInv = inventory.filter(item => {
     if (invCatFilter !== "all" && item.category !== invCatFilter) return false;
-    if (invStockFilter === "low" && item.quantity > item.min_stock) return false;
-    if (invStockFilter === "out" && item.quantity > 0) return false;
+    if (invLocFilter !== "all" && item.location !== invLocFilter) return false;
     if (invSearch && !item.name.toLowerCase().includes(invSearch.toLowerCase())) return false;
     return true;
   });
 
   const invStats = {
     total: inventory.length,
-    low: inventory.filter(i => i.quantity > 0 && i.quantity <= i.min_stock).length,
-    out: inventory.filter(i => i.quantity === 0).length,
-    totalValue: inventory.reduce((s, i) => s + i.quantity * i.cost_per_unit, 0),
+    byLocation: INVENTORY_LOCATIONS.reduce((acc, loc) => {
+      acc[loc.value] = inventory.filter(i => i.location === loc.value).length;
+      return acc;
+    }, {} as Record<string, number>),
   };
 
   // ── Year overview (uses lightweight counts) ──
@@ -455,31 +492,38 @@ export default function Home() {
     </div>
   );
 
-  // Month grid
+  // Month grid — IMPROVED COLORS
   const renderMonth = () => {
     const cells = [];
     for (let i = 0; i < fD; i++) cells.push(<div key={`e${i}`} className="rounded-lg opacity-30" style={{ background: "#f8f6f3" }} />);
     for (let d = 1; d <= dIM; d++) {
       const ds = fmtD(year, month, d), isTd = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
       const dow = new Date(year, month, d).getDay(), dowIdx = dow === 0 ? 6 : dow - 1;
+      const dayHasConfirmado = VENUES.some(v => slotEvts(ds, v.id).some(e => e.status === "confirmado"));
+      const dayHasCotizacion = VENUES.some(v => slotEvts(ds, v.id).some(e => e.status === "cotizacion"));
       cells.push(
-        <div key={d} className="bg-white rounded-lg overflow-hidden flex flex-col" style={{ border: isTd ? `2.5px solid ${B.primary}` : `1px solid ${B.accent}22`, boxShadow: isTd ? `0 3px 14px ${B.primary}22` : "0 1px 3px rgba(0,0,0,.04)" }}>
-          <div className="px-2 py-1 flex justify-between items-center shrink-0" style={{ background: isTd ? B.gDark : B.warm, borderBottom: `2px solid ${B.accent}33` }}>
+        <div key={d} className="bg-white rounded-lg overflow-hidden flex flex-col" style={{ border: isTd ? `2.5px solid ${B.primary}` : dayHasConfirmado ? "2px solid #3b82f6" : dayHasCotizacion ? "2px solid #f97316" : `1px solid ${B.accent}22`, boxShadow: isTd ? `0 3px 14px ${B.primary}22` : dayHasConfirmado ? "0 2px 8px rgba(59,130,246,.15)" : dayHasCotizacion ? "0 2px 8px rgba(249,115,22,.12)" : "0 1px 3px rgba(0,0,0,.04)" }}>
+          <div className="px-2 py-1 flex justify-between items-center shrink-0" style={{ background: isTd ? B.gDark : dayHasConfirmado ? "#eff6ff" : dayHasCotizacion ? "#fff7ed" : B.warm, borderBottom: isTd ? `2px solid ${B.gold}` : dayHasConfirmado ? "2px solid #93c5fd" : dayHasCotizacion ? "2px solid #fdba74" : `2px solid ${B.accent}33` }}>
             <span className="text-sm font-extrabold" style={{ color: isTd ? "#fff" : B.dark }}>{d}</span>
             <span className="text-[9px] font-semibold" style={{ color: isTd ? B.gold : B.secondary }}>{DAYS_ES[dowIdx]}</span>
           </div>
           {VENUES.map((v, vi) => {
             const se = slotEvts(ds, v.id);
+            const hasConf = se.some(e => e.status === "confirmado");
+            const hasCot = se.some(e => e.status === "cotizacion");
             return (
-              <div key={v.id} onClick={() => openSlot(ds, v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{ borderBottom: vi < VENUES.length - 1 ? `2.5px solid ${B.accent}30` : "none", background: vi % 2 === 0 ? "transparent" : B.warm }}
-                onMouseEnter={e => (e.currentTarget.style.background = B.light)} onMouseLeave={e => (e.currentTarget.style.background = vi % 2 === 0 ? "transparent" : B.warm)}>
+              <div key={v.id} onClick={() => openSlot(ds, v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{ borderBottom: vi < VENUES.length - 1 ? `2.5px solid ${B.accent}30` : "none", background: hasConf ? "#eff6ff" : hasCot ? "#fff7ed" : vi % 2 === 0 ? "transparent" : B.warm }}
+                onMouseEnter={e => (e.currentTarget.style.background = hasConf ? "#dbeafe" : hasCot ? "#ffedd5" : B.light)} onMouseLeave={e => (e.currentTarget.style.background = hasConf ? "#eff6ff" : hasCot ? "#fff7ed" : vi % 2 === 0 ? "transparent" : B.warm)}>
                 <div className="flex items-center gap-1 flex-wrap">
                   <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{ color: `${B.secondary}aa` }}>{v.icon} {v.label}</span>
-                  {se.map(evt => { const si = STATUS_OPTIONS.find(s => s.value === evt.status)!; return <span key={evt.id + "tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{ background: si.bg, color: si.color, border: `1px solid ${si.border}` }}>{evt.status === "confirmado" ? "CONFIRMADO" : "COTIZACIÓN"}</span>; })}
+                  {se.map(evt => {
+                    const sc = SLOT_COLORS[evt.status as keyof typeof SLOT_COLORS] || SLOT_COLORS.cotizacion;
+                    return <span key={evt.id + "tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{ background: sc.tag, color: sc.tagText, border: `1px solid ${sc.tagBorder}` }}>{evt.status === "confirmado" ? "CONFIRMADO" : "COTIZACIÓN"}</span>;
+                  })}
                 </div>
                 {se.map(evt => {
-                  const bgC = evt.status === "confirmado" ? "#1d4ed8" : "#c2410c";
-                  return <div key={evt.id} onClick={e => evtClick(e, evt)} className="rounded px-1.5 py-0.5 text-[8.5px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{ background: bgC, boxShadow: "0 1px 3px rgba(0,0,0,.15)" }}>
+                  const sc = SLOT_COLORS[evt.status as keyof typeof SLOT_COLORS] || SLOT_COLORS.cotizacion;
+                  return <div key={evt.id} onClick={e => evtClick(e, evt)} className="rounded px-1.5 py-0.5 text-[8.5px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{ background: sc.bg, boxShadow: `0 1px 4px ${sc.bg}44` }}>
                     <span>{EVENT_TYPES.find(t => t.value === evt.type)?.emoji}</span>
                     <span className="overflow-hidden text-ellipsis whitespace-nowrap">{evt.name || EVENT_TYPES.find(t => t.value === evt.type)?.label}</span>
                     <span className="ml-auto text-[7px] opacity-80">{evt.time}</span>
@@ -510,10 +554,11 @@ export default function Home() {
             <div className="px-5 py-3">
               {se.length === 0 ? <div className="text-gray-400 text-sm italic py-3">Sin eventos programados</div>
                 : se.map(evt => { const ti = EVENT_TYPES.find(t => t.value === evt.type)!; const si = STATUS_OPTIONS.find(s => s.value === evt.status)!; const ta = evt.advances?.reduce((s: number, a: Advance) => s + (a.amount || 0), 0) || 0;
-                  return <div key={evt.id} className="flex items-center gap-3 p-3 rounded-lg mb-2 cursor-pointer" style={{ border: `2px solid ${si.border}`, background: `${si.bg}55` }}>
+                  return <div key={evt.id} className="flex items-center gap-3 p-3 rounded-lg mb-2 cursor-pointer" style={{ border: `2px solid ${si.border}`, background: `${si.bg}` }}>
                     <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 text-white" style={{ background: si.color }}>{ti.emoji}</div>
                     <div className="flex-1" onClick={() => editFrom(evt)}>
                       <div className="font-bold text-sm" style={{ color: B.dark }}>{evt.name || ti.label}</div>
+                      {evt.client_name && <div className="text-[11px] text-gray-500">👤 {evt.client_name}{evt.contact_number ? ` · 📞 ${evt.contact_number}` : ""}</div>}
                       <div className="text-xs text-gray-500 mt-0.5">{evt.time} · {evt.guests} pers. · S/ {evt.amount || "0"}{ta > 0 && ` · Adel: S/ ${ta.toFixed(2)}`}</div>
                     </div>
                     <span className="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase shrink-0" style={{ background: si.bg, color: si.color, border: `1.5px solid ${si.border}` }}>{si.label}</span>
@@ -527,16 +572,16 @@ export default function Home() {
     );
   };
 
-  // ── Inventory Tab Renderer ──
+  // ── Inventory Tab Renderer (updated) ──
   const renderInventory = () => (
     <div className="px-6 py-4 pb-16">
       {/* Stats */}
       <div className="grid grid-cols-4 gap-3 mb-5">
         {[
           { l: "Total Productos", v: invStats.total, icon: "📦", c: B.gold, bg: `${B.gold}15` },
-          { l: "Stock Bajo", v: invStats.low, icon: "⚠️", c: "#f59e0b", bg: "#fffbeb" },
-          { l: "Agotados", v: invStats.out, icon: "🚫", c: "#ef4444", bg: "#fef2f2" },
-          { l: "Valor Total", v: `S/ ${invStats.totalValue.toFixed(2)}`, icon: "💰", c: "#16a34a", bg: "#f0fdf4" },
+          { l: "En Restaurant", v: invStats.byLocation["restaurant"] || 0, icon: "🍽️", c: "#2563eb", bg: "#eff6ff" },
+          { l: "En Salón", v: invStats.byLocation["salon"] || 0, icon: "🎪", c: "#7c3aed", bg: "#f5f3ff" },
+          { l: "Otros Ambientes", v: (invStats.total - (invStats.byLocation["restaurant"] || 0) - (invStats.byLocation["salon"] || 0)), icon: "🏢", c: "#16a34a", bg: "#f0fdf4" },
         ].map(s => (
           <div key={s.l} className="rounded-xl p-4" style={{ background: s.bg, border: `1px solid ${s.c}22` }}>
             <div className="text-2xl mb-1">{s.icon}</div>
@@ -556,11 +601,10 @@ export default function Home() {
           <option value="all">Todas las categorías</option>
           {INVENTORY_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.icon} {c.label}</option>)}
         </select>
-        <div className="flex gap-1 p-1 rounded-lg" style={{ background: `${B.accent}15` }}>
-          {([["all", "Todos"], ["low", "Stock Bajo"], ["out", "Agotados"]] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setInvStockFilter(v)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: invStockFilter === v ? "#fff" : "transparent", color: invStockFilter === v ? B.primary : "#64748b", boxShadow: invStockFilter === v ? "0 1px 4px rgba(0,0,0,.08)" : "none" }}>{l}</button>
-          ))}
-        </div>
+        <select value={invLocFilter} onChange={e => setInvLocFilter(e.target.value)} className="px-3 py-2.5 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>
+          <option value="all">Todas las ubicaciones</option>
+          {INVENTORY_LOCATIONS.map(l => <option key={l.value} value={l.value}>{l.icon} {l.label}</option>)}
+        </select>
         <button onClick={() => { setEditInvItem(null); setInvModalOpen(true); }} className="px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: B.gDark, boxShadow: "0 4px 12px rgba(61,26,0,.2)" }}>+ Nuevo Producto</button>
       </div>
 
@@ -568,8 +612,8 @@ export default function Home() {
       {invLoading ? <div className="text-center py-20 text-lg font-bold" style={{ color: B.secondary }}>Cargando inventario...</div> : (
         <div className="bg-white rounded-xl overflow-hidden" style={{ border: `1px solid ${B.accent}22`, boxShadow: "0 2px 8px rgba(0,0,0,.04)" }}>
           {/* Table Header */}
-          <div className="grid grid-cols-[1fr_120px_100px_100px_120px_80px] gap-2 px-5 py-3 text-[10px] font-bold uppercase tracking-wide" style={{ background: B.warm, borderBottom: `2px solid ${B.accent}22`, color: B.secondary }}>
-            <span>Producto</span><span>Categoría</span><span className="text-center">Cantidad</span><span className="text-center">Mín. Stock</span><span className="text-right">Valor</span><span className="text-center">Acciones</span>
+          <div className="grid grid-cols-[1fr_120px_100px_130px_130px_80px] gap-2 px-5 py-3 text-[10px] font-bold uppercase tracking-wide" style={{ background: B.warm, borderBottom: `2px solid ${B.accent}22`, color: B.secondary }}>
+            <span>Producto</span><span>Categoría</span><span className="text-center">Cantidad</span><span>Ubicación</span><span>Registrado por</span><span className="text-center">Acciones</span>
           </div>
           {filteredInv.length === 0 ? (
             <div className="text-center py-12 text-gray-400">
@@ -579,14 +623,9 @@ export default function Home() {
             </div>
           ) : filteredInv.map(item => {
             const cat = INVENTORY_CATEGORIES.find(c => c.value === item.category) || INVENTORY_CATEGORIES[INVENTORY_CATEGORIES.length - 1];
-            const isLow = item.quantity > 0 && item.quantity <= item.min_stock;
-            const isOut = item.quantity === 0;
-            const statusColor = isOut ? "#ef4444" : isLow ? "#f59e0b" : "#16a34a";
-            const statusBg = isOut ? "#fef2f2" : isLow ? "#fffbeb" : "#f0fdf4";
-            const statusLabel = isOut ? "AGOTADO" : isLow ? "BAJO" : "OK";
-            const totalVal = item.quantity * item.cost_per_unit;
+            const loc = INVENTORY_LOCATIONS.find(l => l.value === item.location) || { icon: "📍", label: item.location || "—" };
             return (
-              <div key={item.id} className="grid grid-cols-[1fr_120px_100px_100px_120px_80px] gap-2 px-5 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${B.accent}11` }}
+              <div key={item.id} className="grid grid-cols-[1fr_120px_100px_130px_130px_80px] gap-2 px-5 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${B.accent}11` }}
                 onMouseEnter={e => (e.currentTarget.style.background = B.warm)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
                 <div>
                   <div className="font-bold" style={{ color: B.dark }}>{item.name}</div>
@@ -594,14 +633,12 @@ export default function Home() {
                 </div>
                 <span className="text-xs font-semibold" style={{ color: "#64748b" }}>{cat.icon} {cat.label}</span>
                 <div className="text-center">
-                  <span className="inline-block px-2.5 py-1 rounded-full text-xs font-extrabold" style={{ background: statusBg, color: statusColor, border: `1.5px solid ${statusColor}33` }}>
+                  <span className="inline-block px-2.5 py-1 rounded-full text-xs font-extrabold" style={{ background: "#f0fdf4", color: "#16a34a", border: "1.5px solid #16a34a33" }}>
                     {item.quantity} {item.unit}
                   </span>
                 </div>
-                <div className="text-center text-xs text-gray-500">{item.min_stock} {item.unit}
-                  <div className="text-[9px] font-bold mt-0.5" style={{ color: statusColor }}>{statusLabel}</div>
-                </div>
-                <div className="text-right text-xs font-semibold" style={{ color: B.dark }}>S/ {totalVal.toFixed(2)}</div>
+                <span className="text-xs font-semibold" style={{ color: "#64748b" }}>{loc.icon} {loc.label}</span>
+                <span className="text-xs font-semibold" style={{ color: "#64748b" }}>{item.registered_by || "—"}</span>
                 <div className="flex gap-1 justify-center">
                   <button onClick={() => { setEditInvItem(item); setInvModalOpen(true); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style={{ background: B.light, color: B.primary }} title="Editar">✏</button>
                   <button onClick={() => handleInvDel(item.id!)} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-red-50 text-red-500" title="Eliminar">🗑</button>
@@ -705,7 +742,7 @@ export default function Home() {
 
           {/* Detail Popover */}
           {detEvt && <div className="fixed inset-0 z-[900]" onClick={() => setDetEvt(null)}>
-            <div onClick={e => e.stopPropagation()} className="absolute bg-white rounded-xl p-4 z-[901]" style={{ left: Math.min(detPos.x, typeof window !== "undefined" ? window.innerWidth - 360 : 400), top: Math.min(detPos.y, typeof window !== "undefined" ? window.innerHeight - 400 : 400), boxShadow: "0 20px 40px rgba(61,26,0,.15)", animation: "slideUp .2s ease", border: `1px solid ${B.accent}22` }}>
+            <div onClick={e => e.stopPropagation()} className="absolute bg-white rounded-xl p-4 z-[901]" style={{ left: Math.min(detPos.x, typeof window !== "undefined" ? window.innerWidth - 380 : 400), top: Math.min(detPos.y, typeof window !== "undefined" ? window.innerHeight - 450 : 400), boxShadow: "0 20px 40px rgba(61,26,0,.15)", animation: "slideUp .2s ease", border: `1px solid ${B.accent}22` }}>
               <EventDetail event={detEvt} onEdit={editFrom} onDelete={handleDel} />
             </div>
           </div>}
@@ -717,5 +754,6 @@ export default function Home() {
     </div>
   );
 }
+
 
 
