@@ -1,78 +1,142 @@
-import { supabase } from './supabase';
-import { EventData, Advance } from './types';
+import { createClient } from "@supabase/supabase-js";
+import { EventData, InventoryItem } from "./types";
 
-export async function fetchEvents(): Promise<EventData[]> {
-  const { data: events, error } = await supabase
-    .from('events')
-    .select('*')
-    .order('date', { ascending: true });
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
-  if (error) { console.error('Error fetching events:', error); return []; }
+// ── EVENTS (optimized: query by date range instead of fetching all) ──
 
-  const { data: advances, error: advError } = await supabase
-    .from('advances')
-    .select('*');
+/** Fetch events only for a specific month — drastically reduces reads */
+export async function fetchEventsByMonth(year: number, month: number): Promise<EventData[]> {
+  const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const endDate = `${year}-${String(month + 1).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
 
-  if (advError) console.error('Error fetching advances:', advError);
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
 
-  return (events || []).map(evt => ({
-    ...evt,
-    amount: Number(evt.amount) || 0,
-    advances: (advances || [])
-      .filter(a => a.event_id === evt.id)
-      .map(a => ({ id: a.id, event_id: a.event_id, amount: Number(a.amount), locked: a.locked }))
-  }));
+  if (error) throw error;
+  return (data || []) as EventData[];
 }
 
-export async function saveEvent(event: EventData): Promise<EventData | null> {
-  const { advances, ...evtData } = event;
-  const payload = {
-    type: evtData.type,
-    name: evtData.name,
-    date: evtData.date,
-    venue: evtData.venue,
-    time: evtData.time,
-    guests: evtData.guests,
-    decoration_color: evtData.decoration_color,
-    observations: evtData.observations,
-    status: evtData.status,
-    amount: evtData.amount || 0,
-  };
+/** Fetch events for a date range (used for week view or year overview) */
+export async function fetchEventsByRange(startDate: string, endDate: string): Promise<EventData[]> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
 
-  let eventId = evtData.id;
+  if (error) throw error;
+  return (data || []) as EventData[];
+}
 
-  if (eventId) {
-    const { error } = await supabase.from('events').update(payload).eq('id', eventId);
-    if (error) { console.error('Error updating event:', error); throw error; }
+/** Fetch counts per month for year overview (lightweight query) */
+export async function fetchEventCountsByYear(year: number): Promise<Record<number, number>> {
+  const startDate = `${year}-01-01`;
+  const endDate = `${year}-12-31`;
+
+  const { data, error } = await supabase
+    .from("events")
+    .select("date")
+    .gte("date", startDate)
+    .lte("date", endDate);
+
+  if (error) throw error;
+
+  const counts: Record<number, number> = {};
+  (data || []).forEach((row: { date: string }) => {
+    const m = parseInt(row.date.split("-")[1], 10) - 1;
+    counts[m] = (counts[m] || 0) + 1;
+  });
+  return counts;
+}
+
+/** Save event — returns the saved event so we can update state locally */
+export async function saveEvent(event: EventData): Promise<EventData> {
+  if (event.id) {
+    const { data, error } = await supabase
+      .from("events")
+      .update(event)
+      .eq("id", event.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as EventData;
   } else {
-    const { data, error } = await supabase.from('events').insert(payload).select().single();
-    if (error) { console.error('Error inserting event:', error); throw error; }
-    eventId = data.id;
+    const { id, ...rest } = event;
+    const { data, error } = await supabase
+      .from("events")
+      .insert(rest)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as EventData;
   }
-
-  const { data: existingAdv } = await supabase.from('advances').select('id').eq('event_id', eventId);
-  const existingIds = (existingAdv || []).map(a => a.id);
-  const currentIds = advances.filter(a => a.id).map(a => a.id!);
-  const toDelete = existingIds.filter(id => !currentIds.includes(id));
-
-  if (toDelete.length > 0) {
-    await supabase.from('advances').delete().in('id', toDelete);
-  }
-
-  for (const adv of advances) {
-    if (adv.id && existingIds.includes(adv.id)) {
-      await supabase.from('advances').update({ amount: adv.amount, locked: adv.locked }).eq('id', adv.id);
-    } else {
-      await supabase.from('advances').insert({ event_id: eventId, amount: adv.amount, locked: adv.locked });
-    }
-  }
-
-  return { ...event, id: eventId };
 }
 
-export async function deleteEvent(id: string): Promise<void> {
-  const { error } = await supabase.from('events').delete().eq('id', id);
-  if (error) { console.error('Error deleting event:', error); throw error; }
+/** Delete event — returns the id for local state removal */
+export async function deleteEvent(id: string): Promise<string> {
+  const { error } = await supabase.from("events").delete().eq("id", id);
+  if (error) throw error;
+  return id;
 }
+
+// ── KEEP LEGACY fetchEvents for backward compatibility ──
+export async function fetchEvents(): Promise<EventData[]> {
+  const { data, error } = await supabase
+    .from("events")
+    .select("*")
+    .order("date", { ascending: true });
+  if (error) throw error;
+  return (data || []) as EventData[];
+}
+
+// ── INVENTORY ──
+
+export async function fetchInventoryItems(): Promise<InventoryItem[]> {
+  const { data, error } = await supabase
+    .from("inventory")
+    .select("*")
+    .order("category", { ascending: true });
+  if (error) throw error;
+  return (data || []) as InventoryItem[];
+}
+
+export async function saveInventoryItem(item: InventoryItem): Promise<InventoryItem> {
+  if (item.id) {
+    const { data, error } = await supabase
+      .from("inventory")
+      .update({ ...item, updated_at: new Date().toISOString() })
+      .eq("id", item.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as InventoryItem;
+  } else {
+    const { id, ...rest } = item;
+    const { data, error } = await supabase
+      .from("inventory")
+      .insert({ ...rest, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as InventoryItem;
+  }
+}
+
+export async function deleteInventoryItem(id: string): Promise<string> {
+  const { error } = await supabase.from("inventory").delete().eq("id", id);
+  if (error) throw error;
+  return id;
+}
+
 
 
