@@ -22,7 +22,7 @@ export async function fetchEventsByMonth(year: number, month: number): Promise<E
     .order("date", { ascending: true });
 
   if (error) throw error;
-  return (data || []) as EventData[];
+  return (data || []).map(parseEvent);
 }
 
 /** Fetch events for a date range (used for week view or year overview) */
@@ -35,7 +35,7 @@ export async function fetchEventsByRange(startDate: string, endDate: string): Pr
     .order("date", { ascending: true });
 
   if (error) throw error;
-  return (data || []) as EventData[];
+  return (data || []).map(parseEvent);
 }
 
 /** Fetch counts per month for year overview (lightweight query) */
@@ -59,26 +59,56 @@ export async function fetchEventCountsByYear(year: number): Promise<Record<numbe
   return counts;
 }
 
-/** Save event — returns the saved event so we can update state locally */
+/** Parse event from DB row — ensures advances is always an array */
+function parseEvent(row: any): EventData {
+  return {
+    ...row,
+    advances: Array.isArray(row.advances) ? row.advances : [],
+    client_name: row.client_name || "",
+    contact_number: row.contact_number || "",
+    proforma_number: row.proforma_number || "",
+    contract_number: row.contract_number || "",
+  };
+}
+
+/** Save event — advances stored as JSONB column */
 export async function saveEvent(event: EventData): Promise<EventData> {
+  // Prepare payload with advances as JSON
+  const payload = {
+    type: event.type,
+    name: event.name,
+    client_name: event.client_name || "",
+    contact_number: event.contact_number || "",
+    proforma_number: event.proforma_number || "",
+    contract_number: event.contract_number || "",
+    date: event.date,
+    venue: event.venue,
+    time: event.time,
+    guests: event.guests,
+    decoration_color: event.decoration_color || "",
+    observations: event.observations || "",
+    status: event.status,
+    amount: event.amount || 0,
+    advances: event.advances || [],
+  };
+
   if (event.id) {
     const { data, error } = await supabase
       .from("events")
-      .update(event)
+      .update(payload)
       .eq("id", event.id)
       .select()
       .single();
     if (error) throw error;
-    return data as EventData;
+    return parseEvent(data);
   } else {
-    const { id, ...rest } = event;
     const { data, error } = await supabase
       .from("events")
-      .insert(rest)
+      .insert(payload)
       .select()
       .single();
     if (error) throw error;
-    return data as EventData;
+    return parseEvent(data);
   }
 }
 
@@ -96,7 +126,7 @@ export async function fetchEvents(): Promise<EventData[]> {
     .select("*")
     .order("date", { ascending: true });
   if (error) throw error;
-  return (data || []) as EventData[];
+  return (data || []).map(parseEvent);
 }
 
 // ── INVENTORY ──
@@ -111,20 +141,29 @@ export async function fetchInventoryItems(): Promise<InventoryItem[]> {
 }
 
 export async function saveInventoryItem(item: InventoryItem): Promise<InventoryItem> {
+  const payload = {
+    name: item.name,
+    category: item.category,
+    quantity: item.quantity,
+    unit: item.unit,
+    location: item.location || "",
+    registered_by: item.registered_by || "",
+    notes: item.notes || "",
+  };
+
   if (item.id) {
     const { data, error } = await supabase
       .from("inventory")
-      .update({ ...item, updated_at: new Date().toISOString() })
+      .update({ ...payload, updated_at: new Date().toISOString() })
       .eq("id", item.id)
       .select()
       .single();
     if (error) throw error;
     return data as InventoryItem;
   } else {
-    const { id, ...rest } = item;
     const { data, error } = await supabase
       .from("inventory")
-      .insert({ ...rest, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .insert({ ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .select()
       .single();
     if (error) throw error;
@@ -137,6 +176,7 @@ export async function deleteInventoryItem(id: string): Promise<string> {
   if (error) throw error;
   return id;
 }
+
 
 
 
