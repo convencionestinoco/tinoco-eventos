@@ -7,6 +7,10 @@ export interface EventData {
   id?: string;
   type: string;
   name: string;
+  client_name: string;
+  contact_number: string;
+  proforma_number: string;
+  contract_number: string;
   date: string;
   venue: string;
   time: string;
@@ -23,10 +27,11 @@ export interface InventoryItem {
   name: string;
   category: string;
   quantity: number;
-  min_stock: number;
   unit: string;
-  cost_per_unit: number;
+  location: string;
+  registered_by: string;
   notes: string;
   created_at?: string;
   updated_at?: string;
 }
+
