@@ -1,7 +1,15 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
-import { fetchEvents, saveEvent, deleteEvent } from "@/lib/db";
-import { EventData, Advance } from "@/lib/types";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  fetchEventsByMonth,
+  fetchEventCountsByYear,
+  saveEvent,
+  deleteEvent,
+  fetchInventoryItems,
+  saveInventoryItem,
+  deleteInventoryItem,
+} from "@/lib/db";
+import { EventData, Advance, InventoryItem } from "@/lib/types";
 
 const ADMIN_PASSWORD = "TINOCOadm@";
 const VENUES = [
@@ -25,23 +33,40 @@ const STATUS_OPTIONS = [
   { value: "confirmado", label: "Confirmado", color: "#1d4ed8", bg: "#dbeafe", border: "#93c5fd" },
   { value: "cotizacion", label: "En Cotización", color: "#c2410c", bg: "#ffedd5", border: "#fdba74" },
 ];
-const DAYS_ES = ["LUN","MAR","MIÉ","JUE","VIE","SÁB","DOM"];
-const MONTHS_ES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
-const B = {dark:"#3d1a00",primary:"#b8540c",secondary:"#d4770a",accent:"#e8960f",gold:"#f0ad1b",light:"#fdf3e3",warm:"#fef8f0",gDark:"linear-gradient(135deg,#3d1a00 0%,#6b2f0a 50%,#3d1a00 100%)",gAcc:"linear-gradient(135deg,#d4770a,#b8540c)"};
+const INVENTORY_CATEGORIES = [
+  { value: "bebidas", label: "Bebidas", icon: "🍷" },
+  { value: "alimentos", label: "Alimentos", icon: "🍖" },
+  { value: "decoracion", label: "Decoración", icon: "🎨" },
+  { value: "mobiliario", label: "Mobiliario", icon: "🪑" },
+  { value: "vajilla", label: "Vajilla & Cubiertos", icon: "🍽️" },
+  { value: "manteleria", label: "Mantelería", icon: "🧵" },
+  { value: "equipos", label: "Equipos & Audio", icon: "🔊" },
+  { value: "limpieza", label: "Limpieza", icon: "🧹" },
+  { value: "otros", label: "Otros", icon: "📦" },
+];
+const UNITS = ["unidades", "cajas", "paquetes", "litros", "kg", "metros", "rollos", "juegos", "docenas"];
+const DAYS_ES = ["LUN", "MAR", "MIÉ", "JUE", "VIE", "SÁB", "DOM"];
+const MONTHS_ES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const B = {
+  dark: "#3d1a00", primary: "#b8540c", secondary: "#d4770a", accent: "#e8960f",
+  gold: "#f0ad1b", light: "#fdf3e3", warm: "#fef8f0",
+  gDark: "linear-gradient(135deg,#3d1a00 0%,#6b2f0a 50%,#3d1a00 100%)",
+  gAcc: "linear-gradient(135deg,#d4770a,#b8540c)",
+};
 
-function dim(y:number,m:number){return new Date(y,m+1,0).getDate()}
-function fdow(y:number,m:number){const d=new Date(y,m,1).getDay();return d===0?6:d-1}
-function fmtD(y:number,m:number,d:number){return `${y}-${String(m+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`}
+function dim(y: number, m: number) { return new Date(y, m + 1, 0).getDate(); }
+function fdow(y: number, m: number) { const d = new Date(y, m, 1).getDay(); return d === 0 ? 6 : d - 1; }
+function fmtD(y: number, m: number, d: number) { return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
 
 // ── Modal ──
-function Modal({open,onClose,children,title}:{open:boolean;onClose:()=>void;children:React.ReactNode;title:string}){
-  if(!open)return null;
-  return(
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{background:"rgba(61,26,0,0.5)",backdropFilter:"blur(6px)",animation:"fadeIn .2s ease"}} onClick={onClose}>
-      <div className="bg-white rounded-2xl w-[600px] max-w-[95vw] max-h-[92vh] overflow-auto" style={{boxShadow:"0 25px 60px rgba(61,26,0,.25)",animation:"slideUp .25s ease"}} onClick={e=>e.stopPropagation()}>
-        <div className="flex justify-between items-center px-6 py-4 sticky top-0 bg-white z-10 rounded-t-2xl" style={{borderBottom:`2px solid ${B.accent}33`}}>
-          <h2 className="text-lg font-bold" style={{color:B.dark}}>{title}</h2>
-          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style={{background:B.light,color:B.primary}}>✕</button>
+function Modal({ open, onClose, children, title }: { open: boolean; onClose: () => void; children: React.ReactNode; title: string }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center" style={{ background: "rgba(61,26,0,0.5)", backdropFilter: "blur(6px)", animation: "fadeIn .2s ease" }} onClick={onClose}>
+      <div className="bg-white rounded-2xl w-[600px] max-w-[95vw] max-h-[92vh] overflow-auto" style={{ boxShadow: "0 25px 60px rgba(61,26,0,.25)", animation: "slideUp .25s ease" }} onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center px-6 py-4 sticky top-0 bg-white z-10 rounded-t-2xl" style={{ borderBottom: `2px solid ${B.accent}33` }}>
+          <h2 className="text-lg font-bold" style={{ color: B.dark }}>{title}</h2>
+          <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style={{ background: B.light, color: B.primary }}>✕</button>
         </div>
         <div className="p-6">{children}</div>
       </div>
@@ -50,31 +75,31 @@ function Modal({open,onClose,children,title}:{open:boolean;onClose:()=>void;chil
 }
 
 // ── Advance Row ──
-function AdvanceRow({advance,index,onUpdate,onLock}:{advance:Advance;index:number;onUpdate:(i:number,v:string)=>void;onLock:(i:number)=>void}){
-  const[showPw,setShowPw]=useState(false);
-  const[pw,setPw]=useState("");
-  const[pwErr,setPwErr]=useState(false);
-  const handleLock=()=>{if(pw===ADMIN_PASSWORD){onLock(index);setShowPw(false);setPw("");setPwErr(false)}else setPwErr(true)};
-  return(
-    <div className="flex items-center gap-2 p-2 rounded-lg" style={{background:advance.locked?"#f0fdf4":B.warm,border:advance.locked?"1px solid #bbf7d0":`1px solid ${B.accent}33`}}>
-      <span className="text-xs font-bold text-gray-400 w-5">{index+1}.</span>
+function AdvanceRow({ advance, index, onUpdate, onLock }: { advance: Advance; index: number; onUpdate: (i: number, v: string) => void; onLock: (i: number) => void }) {
+  const [showPw, setShowPw] = useState(false);
+  const [pw, setPw] = useState("");
+  const [pwErr, setPwErr] = useState(false);
+  const handleLock = () => { if (pw === ADMIN_PASSWORD) { onLock(index); setShowPw(false); setPw(""); setPwErr(false); } else setPwErr(true); };
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg" style={{ background: advance.locked ? "#f0fdf4" : B.warm, border: advance.locked ? "1px solid #bbf7d0" : `1px solid ${B.accent}33` }}>
+      <span className="text-xs font-bold text-gray-400 w-5">{index + 1}.</span>
       <div className="relative flex-1">
         <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">S/</span>
-        <input type="number" value={advance.amount||""} onChange={e=>!advance.locked&&onUpdate(index,e.target.value)} disabled={advance.locked} placeholder="0.00"
-          className="w-full pl-8 pr-3 py-2 rounded-lg text-sm border" style={{borderColor:`${B.accent}33`,background:advance.locked?"#f0fdf4":"#fff",color:advance.locked?"#16a34a":B.dark,fontWeight:advance.locked?700:400}}/>
+        <input type="number" value={advance.amount || ""} onChange={e => !advance.locked && onUpdate(index, e.target.value)} disabled={advance.locked} placeholder="0.00"
+          className="w-full pl-8 pr-3 py-2 rounded-lg text-sm border" style={{ borderColor: `${B.accent}33`, background: advance.locked ? "#f0fdf4" : "#fff", color: advance.locked ? "#16a34a" : B.dark, fontWeight: advance.locked ? 700 : 400 }} />
       </div>
-      {advance.locked?<span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-600">🔒 Validado</span>
-      :<button onClick={()=>setShowPw(true)} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white whitespace-nowrap" style={{background:B.gAcc}}>Validar</button>}
-      {showPw&&(
-        <div className="fixed inset-0 z-[2000] flex items-center justify-center" style={{background:"rgba(61,26,0,.45)",backdropFilter:"blur(4px)"}} onClick={()=>{setShowPw(false);setPw("");setPwErr(false)}}>
-          <div onClick={e=>e.stopPropagation()} className="bg-white rounded-xl p-6 w-[340px]" style={{boxShadow:"0 20px 40px rgba(61,26,0,.2)"}}>
-            <div className="text-center mb-4"><div className="text-3xl mb-2">🔐</div><h3 className="font-bold" style={{color:B.dark}}>Validar Adelanto #{index+1}</h3><p className="text-xs text-gray-400 mt-1">Monto: S/ {advance.amount||"0.00"}</p></div>
-            <input type="password" value={pw} onChange={e=>{setPw(e.target.value);setPwErr(false)}} onKeyDown={e=>e.key==="Enter"&&handleLock()} placeholder="Contraseña de administrador" autoFocus
-              className="w-full px-3 py-2.5 rounded-lg text-sm mb-1" style={{border:pwErr?"2px solid #ef4444":`1px solid ${B.accent}44`}}/>
-            {pwErr&&<p className="text-red-500 text-xs mb-2">Contraseña incorrecta</p>}
+      {advance.locked ? <span className="text-xs font-bold px-2 py-1 rounded bg-green-100 text-green-600">🔒 Validado</span>
+        : <button onClick={() => setShowPw(true)} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white whitespace-nowrap" style={{ background: B.gAcc }}>Validar</button>}
+      {showPw && (
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center" style={{ background: "rgba(61,26,0,.45)", backdropFilter: "blur(4px)" }} onClick={() => { setShowPw(false); setPw(""); setPwErr(false); }}>
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-xl p-6 w-[340px]" style={{ boxShadow: "0 20px 40px rgba(61,26,0,.2)" }}>
+            <div className="text-center mb-4"><div className="text-3xl mb-2">🔐</div><h3 className="font-bold" style={{ color: B.dark }}>Validar Adelanto #{index + 1}</h3><p className="text-xs text-gray-400 mt-1">Monto: S/ {advance.amount || "0.00"}</p></div>
+            <input type="password" value={pw} onChange={e => { setPw(e.target.value); setPwErr(false); }} onKeyDown={e => e.key === "Enter" && handleLock()} placeholder="Contraseña de administrador" autoFocus
+              className="w-full px-3 py-2.5 rounded-lg text-sm mb-1" style={{ border: pwErr ? "2px solid #ef4444" : `1px solid ${B.accent}44` }} />
+            {pwErr && <p className="text-red-500 text-xs mb-2">Contraseña incorrecta</p>}
             <div className="flex gap-2 mt-3">
-              <button onClick={()=>{setShowPw(false);setPw("");setPwErr(false)}} className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-gray-500 bg-white" style={{border:`1px solid ${B.accent}33`}}>Cancelar</button>
-              <button onClick={handleLock} className="flex-1 py-2.5 rounded-lg font-bold text-sm text-white" style={{background:B.gAcc}}>Confirmar</button>
+              <button onClick={() => { setShowPw(false); setPw(""); setPwErr(false); }} className="flex-1 py-2.5 rounded-lg font-semibold text-sm text-gray-500 bg-white" style={{ border: `1px solid ${B.accent}33` }}>Cancelar</button>
+              <button onClick={handleLock} className="flex-1 py-2.5 rounded-lg font-bold text-sm text-white" style={{ background: B.gAcc }}>Confirmar</button>
             </div>
           </div>
         </div>
@@ -84,181 +109,345 @@ function AdvanceRow({advance,index,onUpdate,onLock}:{advance:Advance;index:numbe
 }
 
 // ── Event Form ──
-function EventForm({event,onSave,onClose,onDelete,dateStr,venue,events}:{event:EventData|null;onSave:(e:EventData)=>void;onClose:()=>void;onDelete:(id:string)=>void;dateStr:string;venue:string;events:EventData[]}){
-  const[form,setForm]=useState<EventData>(event||{type:"boda",name:"",date:dateStr,venue,time:"18:00",guests:50,decoration_color:"",observations:"",status:"cotizacion",amount:0,advances:[]});
-  const[saveErr,setSaveErr]=useState("");
-  const[saving,setSaving]=useState(false);
-  const up=(k:string,v:any)=>{setForm(p=>({...p,[k]:v}));setSaveErr("")};
-  const addAdv=()=>{if(form.advances.length<10)up("advances",[...form.advances,{amount:0,locked:false}])};
-  const upAdv=(i:number,v:string)=>{const a=[...form.advances];a[i]={...a[i],amount:parseFloat(v)||0};up("advances",a)};
-  const lockAdv=(i:number)=>{const a=[...form.advances];a[i]={...a[i],locked:true};up("advances",a)};
-  const rmAdv=(i:number)=>{if(!form.advances[i].locked)up("advances",form.advances.filter((_:any,x:number)=>x!==i))};
-  const totA=form.advances.reduce((s:number,a:Advance)=>s+(a.amount||0),0);
-  const rem=(form.amount||0)-totA;
+function EventForm({ event, onSave, onClose, onDelete, dateStr, venue, events }: { event: EventData | null; onSave: (e: EventData) => void; onClose: () => void; onDelete: (id: string) => void; dateStr: string; venue: string; events: EventData[] }) {
+  const [form, setForm] = useState<EventData>(event || { type: "boda", name: "", date: dateStr, venue, time: "18:00", guests: 50, decoration_color: "", observations: "", status: "cotizacion", amount: 0, advances: [] });
+  const [saveErr, setSaveErr] = useState("");
+  const [saving, setSaving] = useState(false);
+  const up = (k: string, v: any) => { setForm(p => ({ ...p, [k]: v })); setSaveErr(""); };
+  const addAdv = () => { if (form.advances.length < 10) up("advances", [...form.advances, { amount: 0, locked: false }]); };
+  const upAdv = (i: number, v: string) => { const a = [...form.advances]; a[i] = { ...a[i], amount: parseFloat(v) || 0 }; up("advances", a); };
+  const lockAdv = (i: number) => { const a = [...form.advances]; a[i] = { ...a[i], locked: true }; up("advances", a); };
+  const rmAdv = (i: number) => { if (!form.advances[i].locked) up("advances", form.advances.filter((_: any, x: number) => x !== i)); };
+  const totA = form.advances.reduce((s: number, a: Advance) => s + (a.amount || 0), 0);
+  const rem = (form.amount || 0) - totA;
 
-  const handleSave=async()=>{
-    if(form.status==="confirmado"){
-      const existing=events.filter(e=>e.date===form.date&&e.venue===form.venue&&e.status==="confirmado"&&e.id!==form.id);
-      if(existing.length>0){setSaveErr(`Ya existe un evento CONFIRMADO en ${VENUES.find(v=>v.id===form.venue)?.label} para esta fecha.`);return}
+  const handleSave = async () => {
+    if (form.status === "confirmado") {
+      const existing = events.filter(e => e.date === form.date && e.venue === form.venue && e.status === "confirmado" && e.id !== form.id);
+      if (existing.length > 0) { setSaveErr(`Ya existe un evento CONFIRMADO en ${VENUES.find(v => v.id === form.venue)?.label} para esta fecha.`); return; }
     }
     setSaving(true);
-    try{await onSave(form)}catch(e:any){setSaveErr(e.message||"Error al guardar")}
+    try { await onSave(form); } catch (e: any) { setSaveErr(e.message || "Error al guardar"); }
     setSaving(false);
   };
 
-  const inp="w-full px-3.5 py-2.5 rounded-lg text-sm border";
-  const lbl="text-[11px] font-bold uppercase tracking-wide mb-1.5 block";
+  const inp = "w-full px-3.5 py-2.5 rounded-lg text-sm border";
+  const lbl = "text-[11px] font-bold uppercase tracking-wide mb-1.5 block";
 
-  return(
+  return (
     <div>
-      <div className="mb-4"><label className={lbl} style={{color:B.primary}}>Tipo de Evento</label>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Tipo de Evento</label>
         <div className="flex flex-wrap gap-1.5">
-          {EVENT_TYPES.map(t=><button key={t.value} onClick={()=>up("type",t.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{border:`2px solid ${form.type===t.value?B.primary:B.accent+"33"}`,background:form.type===t.value?B.light:"#fff",color:form.type===t.value?B.primary:"#64748b"}}>{t.emoji} {t.label}</button>)}
+          {EVENT_TYPES.map(t => <button key={t.value} onClick={() => up("type", t.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ border: `2px solid ${form.type === t.value ? B.primary : B.accent + "33"}`, background: form.type === t.value ? B.light : "#fff", color: form.type === t.value ? B.primary : "#64748b" }}>{t.emoji} {t.label}</button>)}
         </div>
       </div>
-      <div className="mb-4"><label className={lbl} style={{color:B.primary}}>Nombre del Evento</label><input className={inp} style={{borderColor:`${B.accent}33`}} value={form.name} onChange={e=>up("name",e.target.value)} placeholder="Ej: Boda de María y Juan"/></div>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Nombre del Evento</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.name} onChange={e => up("name", e.target.value)} placeholder="Ej: Boda de María y Juan" /></div>
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div><label className={lbl} style={{color:B.primary}}>Fecha</label><input className={inp} style={{borderColor:`${B.accent}33`,background:B.warm}} type="date" value={form.date} readOnly/></div>
-        <div><label className={lbl} style={{color:B.primary}}>Hora Inicio</label><input className={inp} style={{borderColor:`${B.accent}33`}} type="time" value={form.time} onChange={e=>up("time",e.target.value)}/></div>
-        <div><label className={lbl} style={{color:B.primary}}>Personas</label><input className={inp} style={{borderColor:`${B.accent}33`}} type="number" min="1" value={form.guests} onChange={e=>up("guests",parseInt(e.target.value)||0)}/></div>
+        <div><label className={lbl} style={{ color: B.primary }}>Fecha</label><input className={inp} style={{ borderColor: `${B.accent}33`, background: B.warm }} type="date" value={form.date} readOnly /></div>
+        <div><label className={lbl} style={{ color: B.primary }}>Hora Inicio</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="time" value={form.time} onChange={e => up("time", e.target.value)} /></div>
+        <div><label className={lbl} style={{ color: B.primary }}>Personas</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="number" min="1" value={form.guests} onChange={e => up("guests", parseInt(e.target.value) || 0)} /></div>
       </div>
-      <div className="mb-4"><label className={lbl} style={{color:B.primary}}>Color de Decoración</label><input className={inp} style={{borderColor:`${B.accent}33`}} value={form.decoration_color} onChange={e=>up("decoration_color",e.target.value)} placeholder="Ej: Rojo con dorado, Blanco y rosa pastel"/></div>
-      <div className="mb-4"><label className={lbl} style={{color:B.primary}}>Estado</label>
-        <div className="flex gap-2">{STATUS_OPTIONS.map(s=><button key={s.value} onClick={()=>up("status",s.value)} className="flex-1 py-2.5 rounded-lg font-bold text-sm" style={{border:`2px solid ${form.status===s.value?s.color:"#e2e8f0"}`,background:form.status===s.value?s.bg:"#fff",color:form.status===s.value?s.color:"#94a3b8"}}>{s.value==="confirmado"?"✓ ":"◷ "}{s.label}</button>)}</div>
-        {form.status==="confirmado"&&<p className="text-xs text-blue-700 mt-1.5 italic">⚠ Solo 1 evento confirmado por espacio por día.</p>}
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Color de Decoración</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.decoration_color} onChange={e => up("decoration_color", e.target.value)} placeholder="Ej: Rojo con dorado, Blanco y rosa pastel" /></div>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Estado</label>
+        <div className="flex gap-2">{STATUS_OPTIONS.map(s => <button key={s.value} onClick={() => up("status", s.value)} className="flex-1 py-2.5 rounded-lg font-bold text-sm" style={{ border: `2px solid ${form.status === s.value ? s.color : "#e2e8f0"}`, background: form.status === s.value ? s.bg : "#fff", color: form.status === s.value ? s.color : "#94a3b8" }}>{s.value === "confirmado" ? "✓ " : "◷ "}{s.label}</button>)}</div>
+        {form.status === "confirmado" && <p className="text-xs text-blue-700 mt-1.5 italic">⚠ Solo 1 evento confirmado por espacio por día.</p>}
       </div>
-      <div className="mb-4"><label className={lbl} style={{color:B.primary}}>Monto Total (S/)</label>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Monto Total (S/)</label>
         <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">S/</span>
-          <input className={`${inp} pl-10 text-base font-semibold`} style={{borderColor:`${B.accent}33`}} type="number" value={form.amount||""} onChange={e=>up("amount",parseFloat(e.target.value)||0)} placeholder="0.00"/>
+          <input className={`${inp} pl-10 text-base font-semibold`} style={{ borderColor: `${B.accent}33` }} type="number" value={form.amount || ""} onChange={e => up("amount", parseFloat(e.target.value) || 0)} placeholder="0.00" />
         </div>
       </div>
       <div className="mb-4">
         <div className="flex justify-between items-center mb-2">
-          <label className={`${lbl} !mb-0`} style={{color:B.primary}}>Adelantos ({form.advances.length}/10)</label>
-          {form.advances.length<10&&<button onClick={addAdv} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{background:B.gAcc}}>+ Agregar</button>}
+          <label className={`${lbl} !mb-0`} style={{ color: B.primary }}>Adelantos ({form.advances.length}/10)</label>
+          {form.advances.length < 10 && <button onClick={addAdv} className="text-xs font-bold px-3 py-1.5 rounded-lg text-white" style={{ background: B.gAcc }}>+ Agregar</button>}
         </div>
         <div className="flex flex-col gap-1.5">
-          {form.advances.map((adv:Advance,i:number)=><div key={i} className="flex items-center gap-1"><div className="flex-1"><AdvanceRow advance={adv} index={i} onUpdate={upAdv} onLock={lockAdv}/></div>{!adv.locked&&<button onClick={()=>rmAdv(i)} className="text-red-500 text-base p-1">✕</button>}</div>)}
+          {form.advances.map((adv: Advance, i: number) => <div key={i} className="flex items-center gap-1"><div className="flex-1"><AdvanceRow advance={adv} index={i} onUpdate={upAdv} onLock={lockAdv} /></div>{!adv.locked && <button onClick={() => rmAdv(i)} className="text-red-500 text-base p-1">✕</button>}</div>)}
         </div>
-        {form.advances.length>0&&<div className="mt-2 p-3 rounded-lg flex justify-between text-sm" style={{background:B.warm}}>
+        {form.advances.length > 0 && <div className="mt-2 p-3 rounded-lg flex justify-between text-sm" style={{ background: B.warm }}>
           <div><span className="text-gray-500">Total adelantos: </span><span className="font-bold text-green-600">S/ {totA.toFixed(2)}</span></div>
-          <div><span className="text-gray-500">Saldo: </span><span className="font-bold" style={{color:rem<0?"#ef4444":B.dark}}>S/ {rem.toFixed(2)}</span></div>
+          <div><span className="text-gray-500">Saldo: </span><span className="font-bold" style={{ color: rem < 0 ? "#ef4444" : B.dark }}>S/ {rem.toFixed(2)}</span></div>
         </div>}
       </div>
-      <div className="mb-5"><label className={lbl} style={{color:B.primary}}>Observaciones</label><textarea className={`${inp} min-h-[60px] resize-y`} style={{borderColor:`${B.accent}33`}} value={form.observations} onChange={e=>up("observations",e.target.value)} placeholder="Notas adicionales..."/></div>
-      {saveErr&&<div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm font-semibold mb-3">{saveErr}</div>}
+      <div className="mb-5"><label className={lbl} style={{ color: B.primary }}>Observaciones</label><textarea className={`${inp} min-h-[60px] resize-y`} style={{ borderColor: `${B.accent}33` }} value={form.observations} onChange={e => up("observations", e.target.value)} placeholder="Notas adicionales..." /></div>
+      {saveErr && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm font-semibold mb-3">{saveErr}</div>}
       <div className="flex gap-2">
-        {event?.id&&<button onClick={()=>onDelete(event.id!)} className="px-5 py-3 rounded-lg border border-red-200 bg-red-50 text-red-600 font-bold text-sm">🗑 Eliminar</button>}
-        <div className="flex-1"/>
-        <button onClick={onClose} className="px-5 py-3 rounded-lg font-semibold text-sm text-gray-500 bg-white" style={{border:`1px solid ${B.accent}33`}}>Cancelar</button>
-        <button onClick={handleSave} disabled={saving} className="px-6 py-3 rounded-lg font-bold text-sm text-white" style={{background:B.gDark,boxShadow:"0 4px 12px rgba(61,26,0,.3)",opacity:saving?.6:1}}>{saving?"Guardando...":"Guardar Evento"}</button>
+        {event?.id && <button onClick={() => onDelete(event.id!)} className="px-5 py-3 rounded-lg border border-red-200 bg-red-50 text-red-600 font-bold text-sm">🗑 Eliminar</button>}
+        <div className="flex-1" />
+        <button onClick={onClose} className="px-5 py-3 rounded-lg font-semibold text-sm text-gray-500 bg-white" style={{ border: `1px solid ${B.accent}33` }}>Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="px-6 py-3 rounded-lg font-bold text-sm text-white" style={{ background: B.gDark, boxShadow: "0 4px 12px rgba(61,26,0,.3)", opacity: saving ? .6 : 1 }}>{saving ? "Guardando..." : "Guardar Evento"}</button>
       </div>
     </div>
   );
 }
 
 // ── Event Detail ──
-function EventDetail({event,onEdit,onDelete}:{event:EventData;onEdit:(e:EventData)=>void;onDelete:(id:string)=>void}){
-  const ti=EVENT_TYPES.find(t=>t.value===event.type)||EVENT_TYPES[0];
-  const si=STATUS_OPTIONS.find(s=>s.value===event.status)||STATUS_OPTIONS[0];
-  const ta=event.advances?.reduce((s:number,a:Advance)=>s+(a.amount||0),0)||0;
-  return(
+function EventDetail({ event, onEdit, onDelete }: { event: EventData; onEdit: (e: EventData) => void; onDelete: (id: string) => void }) {
+  const ti = EVENT_TYPES.find(t => t.value === event.type) || EVENT_TYPES[0];
+  const si = STATUS_OPTIONS.find(s => s.value === event.status) || STATUS_OPTIONS[0];
+  const ta = event.advances?.reduce((s: number, a: Advance) => s + (a.amount || 0), 0) || 0;
+  return (
     <div className="min-w-[290px]">
       <div className="flex items-center gap-3 mb-3">
-        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{background:si.color}}>{ti.emoji}</div>
+        <div className="w-11 h-11 rounded-xl flex items-center justify-center text-xl" style={{ background: si.color }}>{ti.emoji}</div>
         <div className="flex-1">
-          <div className="font-bold text-sm" style={{color:B.dark}}>{event.name||ti.label}</div>
-          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{si.label}</span>
+          <div className="font-bold text-sm" style={{ color: B.dark }}>{event.name || ti.label}</div>
+          <span className="inline-block px-2.5 py-0.5 rounded-full text-[11px] font-bold" style={{ background: si.bg, color: si.color, border: `1px solid ${si.border}` }}>{si.label}</span>
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-        {[{l:"Fecha",v:event.date},{l:"Hora",v:event.time},{l:"Personas",v:String(event.guests)},{l:"Monto",v:`S/ ${event.amount||"0.00"}`}].map(i=>(
-          <div key={i.l} className="p-2 rounded-lg" style={{background:B.warm}}><div className="text-[10px] font-bold uppercase" style={{color:B.primary}}>{i.l}</div><div className="font-semibold" style={{color:B.dark}}>{i.v}</div></div>
+        {[{ l: "Fecha", v: event.date }, { l: "Hora", v: event.time }, { l: "Personas", v: String(event.guests) }, { l: "Monto", v: `S/ ${event.amount || "0.00"}` }].map(i => (
+          <div key={i.l} className="p-2 rounded-lg" style={{ background: B.warm }}><div className="text-[10px] font-bold uppercase" style={{ color: B.primary }}>{i.l}</div><div className="font-semibold" style={{ color: B.dark }}>{i.v}</div></div>
         ))}
       </div>
-      {event.decoration_color&&<div className="text-xs mb-2" style={{color:B.dark}}><strong style={{color:B.primary}}>Decoración:</strong> {event.decoration_color}</div>}
-      {ta>0&&<div className="bg-green-50 p-2.5 rounded-lg mb-2 text-sm"><div className="font-bold text-green-600">Adelantos: S/ {ta.toFixed(2)}</div><div className="text-gray-500">Saldo: S/ {((event.amount||0)-ta).toFixed(2)}</div></div>}
-      {event.observations&&<div className="text-xs text-gray-500 mb-2 italic">&ldquo;{event.observations}&rdquo;</div>}
+      {event.decoration_color && <div className="text-xs mb-2" style={{ color: B.dark }}><strong style={{ color: B.primary }}>Decoración:</strong> {event.decoration_color}</div>}
+      {ta > 0 && <div className="bg-green-50 p-2.5 rounded-lg mb-2 text-sm"><div className="font-bold text-green-600">Adelantos: S/ {ta.toFixed(2)}</div><div className="text-gray-500">Saldo: S/ {((event.amount || 0) - ta).toFixed(2)}</div></div>}
+      {event.observations && <div className="text-xs text-gray-500 mb-2 italic">&ldquo;{event.observations}&rdquo;</div>}
       <div className="flex gap-2">
-        <button onClick={()=>onDelete(event.id!)} className="flex-1 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-600 font-bold text-sm">🗑 Eliminar</button>
-        <button onClick={()=>onEdit(event)} className="flex-1 py-2.5 rounded-lg text-white font-bold text-sm" style={{background:B.gDark}}>✏ Editar</button>
+        <button onClick={() => onDelete(event.id!)} className="flex-1 py-2.5 rounded-lg border border-red-200 bg-red-50 text-red-600 font-bold text-sm">🗑 Eliminar</button>
+        <button onClick={() => onEdit(event)} className="flex-1 py-2.5 rounded-lg text-white font-bold text-sm" style={{ background: B.gDark }}>✏ Editar</button>
+      </div>
+    </div>
+  );
+}
+
+// ── Inventory Form ──
+function InventoryForm({ item, onSave, onClose }: { item: InventoryItem | null; onSave: (i: InventoryItem) => void; onClose: () => void }) {
+  const [form, setForm] = useState<InventoryItem>(item || { name: "", category: "otros", quantity: 0, min_stock: 0, unit: "unidades", cost_per_unit: 0, notes: "" });
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState("");
+  const up = (k: string, v: any) => { setForm(p => ({ ...p, [k]: v })); setErr(""); };
+
+  const handleSave = async () => {
+    if (!form.name.trim()) { setErr("El nombre es obligatorio"); return; }
+    setSaving(true);
+    try { await onSave(form); } catch (e: any) { setErr(e.message || "Error al guardar"); }
+    setSaving(false);
+  };
+
+  const inp = "w-full px-3.5 py-2.5 rounded-lg text-sm border";
+  const lbl = "text-[11px] font-bold uppercase tracking-wide mb-1.5 block";
+
+  return (
+    <div>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Categoría</label>
+        <div className="flex flex-wrap gap-1.5">
+          {INVENTORY_CATEGORIES.map(c => <button key={c.value} onClick={() => up("category", c.value)} className="px-3 py-1.5 rounded-full text-xs font-semibold" style={{ border: `2px solid ${form.category === c.value ? B.primary : B.accent + "33"}`, background: form.category === c.value ? B.light : "#fff", color: form.category === c.value ? B.primary : "#64748b" }}>{c.icon} {c.label}</button>)}
+        </div>
+      </div>
+      <div className="mb-4"><label className={lbl} style={{ color: B.primary }}>Nombre del Producto</label><input className={inp} style={{ borderColor: `${B.accent}33` }} value={form.name} onChange={e => up("name", e.target.value)} placeholder="Ej: Sillas plegables blancas" /></div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div><label className={lbl} style={{ color: B.primary }}>Cantidad Actual</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="number" min="0" value={form.quantity || ""} onChange={e => up("quantity", parseInt(e.target.value) || 0)} placeholder="0" /></div>
+        <div><label className={lbl} style={{ color: B.primary }}>Stock Mínimo</label><input className={inp} style={{ borderColor: `${B.accent}33` }} type="number" min="0" value={form.min_stock || ""} onChange={e => up("min_stock", parseInt(e.target.value) || 0)} placeholder="0" /></div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div><label className={lbl} style={{ color: B.primary }}>Unidad de Medida</label>
+          <select className={inp} style={{ borderColor: `${B.accent}33` }} value={form.unit} onChange={e => up("unit", e.target.value)}>
+            {UNITS.map(u => <option key={u} value={u}>{u.charAt(0).toUpperCase() + u.slice(1)}</option>)}
+          </select>
+        </div>
+        <div><label className={lbl} style={{ color: B.primary }}>Costo por Unidad (S/)</label>
+          <div className="relative"><span className="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-gray-400 text-sm">S/</span>
+            <input className={`${inp} pl-10`} style={{ borderColor: `${B.accent}33` }} type="number" min="0" step="0.01" value={form.cost_per_unit || ""} onChange={e => up("cost_per_unit", parseFloat(e.target.value) || 0)} placeholder="0.00" />
+          </div>
+        </div>
+      </div>
+      <div className="mb-5"><label className={lbl} style={{ color: B.primary }}>Notas</label><textarea className={`${inp} min-h-[60px] resize-y`} style={{ borderColor: `${B.accent}33` }} value={form.notes} onChange={e => up("notes", e.target.value)} placeholder="Notas adicionales del producto..." /></div>
+      {err && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm font-semibold mb-3">{err}</div>}
+      <div className="flex gap-2">
+        <div className="flex-1" />
+        <button onClick={onClose} className="px-5 py-3 rounded-lg font-semibold text-sm text-gray-500 bg-white" style={{ border: `1px solid ${B.accent}33` }}>Cancelar</button>
+        <button onClick={handleSave} disabled={saving} className="px-6 py-3 rounded-lg font-bold text-sm text-white" style={{ background: B.gDark, boxShadow: "0 4px 12px rgba(61,26,0,.3)", opacity: saving ? .6 : 1 }}>{saving ? "Guardando..." : "Guardar Producto"}</button>
       </div>
     </div>
   );
 }
 
 // ════════════ MAIN APP ════════════
-export default function Home(){
-  const today=new Date();
-  const[month,setMonth]=useState(today.getMonth());
-  const[year,setYear]=useState(today.getFullYear());
-  const[selectedDay,setSelectedDay]=useState(today.getDate());
-  const[events,setEvents]=useState<EventData[]>([]);
-  const[loading,setLoading]=useState(true);
-  const[modalOpen,setModalOpen]=useState(false);
-  const[editEvt,setEditEvt]=useState<EventData|null>(null);
-  const[selSlot,setSelSlot]=useState({date:"",venue:""});
-  const[detEvt,setDetEvt]=useState<EventData|null>(null);
-  const[detPos,setDetPos]=useState({x:0,y:0});
-  const[fType,setFType]=useState("all");
-  const[fVenue,setFVenue]=useState("all");
-  const[viewMode,setViewMode]=useState("month");
-  const[yearView,setYearView]=useState(false);
+export default function Home() {
+  const today = new Date();
+  const [month, setMonth] = useState(today.getFullYear() === 2026 ? today.getMonth() : 0);
+  const year = 2026;
 
-  const loadEvents=useCallback(async()=>{setLoading(true);const data=await fetchEvents();setEvents(data);setLoading(false)},[]);
-  useEffect(()=>{loadEvents()},[loadEvents]);
+  // ── Events State ──
+  const [events, setEvents] = useState<EventData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editEvt, setEditEvt] = useState<EventData | null>(null);
+  const [selSlot, setSelSlot] = useState({ date: "", venue: "" });
+  const [detEvt, setDetEvt] = useState<EventData | null>(null);
+  const [detPos, setDetPos] = useState({ x: 0, y: 0 });
+  const [fType, setFType] = useState("all");
+  const [fVenue, setFVenue] = useState("all");
+  const [viewMode, setViewMode] = useState("month");
+  const [yearView, setYearView] = useState(false);
 
-  const dIM=dim(year,month),fD=fdow(year,month);
+  // ── Optimización: cache de eventos por mes ──
+  const eventsCache = useRef<Record<string, EventData[]>>({});
+  const [yearCounts, setYearCounts] = useState<Record<number, number>>({});
 
-  // Clamp selectedDay when month changes
-  useEffect(()=>{const mx=dim(year,month);if(selectedDay>mx)setSelectedDay(mx)},[year,month,selectedDay]);
+  // ── Tab & Inventory State ──
+  const [activeTab, setActiveTab] = useState<"calendar" | "inventory">("calendar");
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [invLoading, setInvLoading] = useState(false);
+  const [invLoaded, setInvLoaded] = useState(false);
+  const [invModalOpen, setInvModalOpen] = useState(false);
+  const [editInvItem, setEditInvItem] = useState<InventoryItem | null>(null);
+  const [invSearch, setInvSearch] = useState("");
+  const [invCatFilter, setInvCatFilter] = useState("all");
+  const [invStockFilter, setInvStockFilter] = useState<"all" | "low" | "out">("all");
 
-  // Navigation helpers
-  const goMonth=(offset:number)=>{
-    let m=month+offset,y=year;
-    if(m<0){m=11;y--}else if(m>11){m=0;y++}
-    setMonth(m);setYear(y);
+  // ── Optimized: fetch events only for current month ──
+  const loadMonthEvents = useCallback(async (m: number, force = false) => {
+    const cacheKey = `${year}-${m}`;
+    if (!force && eventsCache.current[cacheKey]) {
+      setEvents(eventsCache.current[cacheKey]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await fetchEventsByMonth(year, m);
+      eventsCache.current[cacheKey] = data;
+      setEvents(data);
+    } catch (err) {
+      console.error("Error loading events:", err);
+    }
+    setLoading(false);
+  }, [year]);
+
+  // ── Load year counts (lightweight) for year overview ──
+  const loadYearCounts = useCallback(async () => {
+    try {
+      const counts = await fetchEventCountsByYear(year);
+      setYearCounts(counts);
+    } catch (err) {
+      console.error("Error loading year counts:", err);
+    }
+  }, [year]);
+
+  useEffect(() => { loadMonthEvents(month); }, [month, loadMonthEvents]);
+  useEffect(() => { loadYearCounts(); }, [loadYearCounts]);
+
+  // ── Lazy load inventory ──
+  const loadInventory = useCallback(async (force = false) => {
+    if (invLoaded && !force) return;
+    setInvLoading(true);
+    try {
+      const data = await fetchInventoryItems();
+      setInventory(data);
+      setInvLoaded(true);
+    } catch (err) {
+      console.error("Error loading inventory:", err);
+    }
+    setInvLoading(false);
+  }, [invLoaded]);
+
+  useEffect(() => {
+    if (activeTab === "inventory") loadInventory();
+  }, [activeTab, loadInventory]);
+
+  const dIM = dim(year, month), fD = fdow(year, month);
+  const prev = () => setMonth(m => m === 0 ? 11 : m - 1);
+  const next = () => setMonth(m => m === 11 ? 0 : m + 1);
+
+  const openSlot = (d: string, v: string) => { setSelSlot({ date: d, venue: v }); setEditEvt(null); setModalOpen(true); setDetEvt(null); };
+
+  // ── Optimistic save: update local cache instead of refetching ──
+  const handleSave = async (data: EventData) => {
+    const saved = await saveEvent(data);
+    const cacheKey = `${year}-${month}`;
+    setEvents(prev => {
+      const updated = saved.id && prev.some(e => e.id === saved.id)
+        ? prev.map(e => e.id === saved.id ? saved : e)
+        : [...prev, saved];
+      eventsCache.current[cacheKey] = updated;
+      return updated;
+    });
+    // Update year counts
+    setYearCounts(prev => {
+      const m = parseInt(saved.date.split("-")[1], 10) - 1;
+      if (!data.id) return { ...prev, [m]: (prev[m] || 0) + 1 };
+      return prev;
+    });
+    setModalOpen(false);
+    setEditEvt(null);
   };
-  const goDay=(offset:number)=>{
-    const d=new Date(year,month,selectedDay+offset);
-    setYear(d.getFullYear());setMonth(d.getMonth());setSelectedDay(d.getDate());
+
+  // ── Optimistic delete ──
+  const handleDel = async (id: string) => {
+    const evtToDelete = events.find(e => e.id === id);
+    await deleteEvent(id);
+    const cacheKey = `${year}-${month}`;
+    setEvents(prev => {
+      const updated = prev.filter(e => e.id !== id);
+      eventsCache.current[cacheKey] = updated;
+      return updated;
+    });
+    if (evtToDelete) {
+      const m = parseInt(evtToDelete.date.split("-")[1], 10) - 1;
+      setYearCounts(prev => ({ ...prev, [m]: Math.max((prev[m] || 1) - 1, 0) }));
+    }
+    setModalOpen(false);
+    setEditEvt(null);
+    setDetEvt(null);
   };
-  const goWeek=(offset:number)=>goDay(offset*7);
 
-  const prev=()=>{
-    if(viewMode==="day")goDay(-1);
-    else if(viewMode==="week")goWeek(-1);
-    else goMonth(-1);
+  const evtClick = (e: React.MouseEvent, evt: EventData) => { e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setDetPos({ x: r.left, y: r.bottom + 4 }); setDetEvt(evt); };
+  const editFrom = (evt: EventData) => { setEditEvt(evt); setSelSlot({ date: evt.date, venue: evt.venue }); setModalOpen(true); setDetEvt(null); };
+
+  const filtered = events.filter(e => { if (fType !== "all" && e.type !== fType) return false; if (fVenue !== "all" && e.venue !== fVenue) return false; return true; });
+  const slotEvts = (d: string, v: string) => filtered.filter(e => e.date === d && e.venue === v);
+
+  // ── Inventory handlers (optimistic) ──
+  const handleInvSave = async (item: InventoryItem) => {
+    const saved = await saveInventoryItem(item);
+    setInventory(prev =>
+      saved.id && prev.some(i => i.id === saved.id)
+        ? prev.map(i => i.id === saved.id ? saved : i)
+        : [...prev, saved]
+    );
+    setInvModalOpen(false);
+    setEditInvItem(null);
   };
-  const next=()=>{
-    if(viewMode==="day")goDay(1);
-    else if(viewMode==="week")goWeek(1);
-    else goMonth(1);
+
+  const handleInvDel = async (id: string) => {
+    await deleteInventoryItem(id);
+    setInventory(prev => prev.filter(i => i.id !== id));
   };
 
-  const openSlot=(d:string,v:string)=>{setSelSlot({date:d,venue:v});setEditEvt(null);setModalOpen(true);setDetEvt(null)};
-  const handleSave=async(data:EventData)=>{await saveEvent(data);await loadEvents();setModalOpen(false);setEditEvt(null)};
-  const handleDel=async(id:string)=>{await deleteEvent(id);await loadEvents();setModalOpen(false);setEditEvt(null);setDetEvt(null)};
-  const evtClick=(e:React.MouseEvent,evt:EventData)=>{e.stopPropagation();const r=(e.currentTarget as HTMLElement).getBoundingClientRect();setDetPos({x:r.left,y:r.bottom+4});setDetEvt(evt)};
-  const editFrom=(evt:EventData)=>{setEditEvt(evt);setSelSlot({date:evt.date,venue:evt.venue});setModalOpen(true);setDetEvt(null)};
+  const filteredInv = inventory.filter(item => {
+    if (invCatFilter !== "all" && item.category !== invCatFilter) return false;
+    if (invStockFilter === "low" && item.quantity > item.min_stock) return false;
+    if (invStockFilter === "out" && item.quantity > 0) return false;
+    if (invSearch && !item.name.toLowerCase().includes(invSearch.toLowerCase())) return false;
+    return true;
+  });
 
-  const filtered=events.filter(e=>{if(fType!=="all"&&e.type!==fType)return false;if(fVenue!=="all"&&e.venue!==fVenue)return false;return true});
-  const slotEvts=(d:string,v:string)=>filtered.filter(e=>e.date===d&&e.venue===v);
+  const invStats = {
+    total: inventory.length,
+    low: inventory.filter(i => i.quantity > 0 && i.quantity <= i.min_stock).length,
+    out: inventory.filter(i => i.quantity === 0).length,
+    totalValue: inventory.reduce((s, i) => s + i.quantity * i.cost_per_unit, 0),
+  };
 
-  // Year overview
-  const renderYear=()=>(
+  // ── Year overview (uses lightweight counts) ──
+  const renderYear = () => (
     <div className="grid grid-cols-4 gap-4 p-2">
-      {MONTHS_ES.map((mn,mi)=>{
-        const d2=dim(year,mi),fd2=fdow(year,mi);
-        const me=events.filter(e=>{const[,em]=e.date.split("-").map(Number);return em===mi+1});
-        return(
-          <div key={mi} onClick={()=>{setMonth(mi);setYearView(false)}} className="bg-white rounded-xl p-3 cursor-pointer transition-all" style={{border:month===mi?`2px solid ${B.primary}`:`1px solid ${B.accent}22`,boxShadow:month===mi?`0 4px 12px ${B.primary}22`:"none"}}>
-            <div className="flex justify-between items-center mb-2 text-sm font-extrabold" style={{color:B.dark}}><span>{mn}</span>{me.length>0&&<span className="text-[10px] px-2 py-0.5 rounded-full text-white" style={{background:B.gAcc}}>{me.length}</span>}</div>
+      {MONTHS_ES.map((mn, mi) => {
+        const d2 = dim(year, mi), fd2 = fdow(year, mi);
+        const me = yearCounts[mi] || 0;
+        return (
+          <div key={mi} onClick={() => { setMonth(mi); setYearView(false); }} className="bg-white rounded-xl p-3 cursor-pointer transition-all" style={{ border: month === mi ? `2px solid ${B.primary}` : `1px solid ${B.accent}22`, boxShadow: month === mi ? `0 4px 12px ${B.primary}22` : "none" }}>
+            <div className="flex justify-between items-center mb-2 text-sm font-extrabold" style={{ color: B.dark }}><span>{mn}</span>{me > 0 && <span className="text-[10px] px-2 py-0.5 rounded-full text-white" style={{ background: B.gAcc }}>{me}</span>}</div>
             <div className="grid grid-cols-7 gap-px text-[8px] text-center">
-              {DAYS_ES.map(d3=><div key={d3} className="text-gray-400 font-bold py-0.5">{d3[0]}</div>)}
-              {Array.from({length:fd2},(_,i)=><div key={`e${i}`}/>)}
-              {Array.from({length:d2},(_,i)=>{const day=i+1,ds=fmtD(year,mi,day),has=events.some(e=>e.date===ds),isTd=today.getFullYear()===year&&today.getMonth()===mi&&today.getDate()===day;
-                return <div key={day} className="py-0.5 rounded" style={{background:has?B.accent:isTd?B.light:"transparent",color:has?"#fff":isTd?B.primary:B.dark,fontWeight:has||isTd?700:400}}>{day}</div>})}
+              {DAYS_ES.map(d3 => <div key={d3} className="text-gray-400 font-bold py-0.5">{d3[0]}</div>)}
+              {Array.from({ length: fd2 }, (_, i) => <div key={`e${i}`} />)}
+              {Array.from({ length: d2 }, (_, i) => {
+                const day = i + 1, isTd = today.getFullYear() === year && today.getMonth() === mi && today.getDate() === day;
+                return <div key={day} className="py-0.5 rounded" style={{ background: isTd ? B.light : "transparent", color: isTd ? B.primary : B.dark, fontWeight: isTd ? 700 : 400 }}>{day}</div>;
+              })}
             </div>
           </div>
         );
@@ -267,33 +456,35 @@ export default function Home(){
   );
 
   // Month grid
-  const renderMonth=()=>{
-    const cells=[];
-    for(let i=0;i<fD;i++)cells.push(<div key={`e${i}`} className="rounded-lg opacity-30" style={{background:"#f8f6f3"}}/>);
-    for(let d=1;d<=dIM;d++){
-      const ds=fmtD(year,month,d),isTd=today.getFullYear()===year&&today.getMonth()===month&&today.getDate()===d;
-      const dow=new Date(year,month,d).getDay(),dowIdx=dow===0?6:dow-1;
+  const renderMonth = () => {
+    const cells = [];
+    for (let i = 0; i < fD; i++) cells.push(<div key={`e${i}`} className="rounded-lg opacity-30" style={{ background: "#f8f6f3" }} />);
+    for (let d = 1; d <= dIM; d++) {
+      const ds = fmtD(year, month, d), isTd = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d;
+      const dow = new Date(year, month, d).getDay(), dowIdx = dow === 0 ? 6 : dow - 1;
       cells.push(
-        <div key={d} className="bg-white rounded-lg overflow-hidden flex flex-col" style={{border:isTd?`2.5px solid ${B.primary}`:`1px solid ${B.accent}22`,boxShadow:isTd?`0 3px 14px ${B.primary}22`:"0 1px 3px rgba(0,0,0,.04)"}}>
-          <div className="px-2 py-1 flex justify-between items-center shrink-0" style={{background:isTd?B.gDark:B.warm,borderBottom:`2px solid ${B.accent}33`}}>
-            <span className="text-sm font-extrabold" style={{color:isTd?"#fff":B.dark}}>{d}</span>
-            <span className="text-[9px] font-semibold" style={{color:isTd?B.gold:B.secondary}}>{DAYS_ES[dowIdx]}</span>
+        <div key={d} className="bg-white rounded-lg overflow-hidden flex flex-col" style={{ border: isTd ? `2.5px solid ${B.primary}` : `1px solid ${B.accent}22`, boxShadow: isTd ? `0 3px 14px ${B.primary}22` : "0 1px 3px rgba(0,0,0,.04)" }}>
+          <div className="px-2 py-1 flex justify-between items-center shrink-0" style={{ background: isTd ? B.gDark : B.warm, borderBottom: `2px solid ${B.accent}33` }}>
+            <span className="text-sm font-extrabold" style={{ color: isTd ? "#fff" : B.dark }}>{d}</span>
+            <span className="text-[9px] font-semibold" style={{ color: isTd ? B.gold : B.secondary }}>{DAYS_ES[dowIdx]}</span>
           </div>
-          {VENUES.map((v,vi)=>{
-            const se=slotEvts(ds,v.id);
-            return(
-              <div key={v.id} onClick={()=>openSlot(ds,v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{borderBottom:vi<VENUES.length-1?`2.5px solid ${B.accent}30`:"none",background:vi%2===0?"transparent":B.warm}}
-                onMouseEnter={e=>(e.currentTarget.style.background=B.light)} onMouseLeave={e=>(e.currentTarget.style.background=vi%2===0?"transparent":B.warm)}>
+          {VENUES.map((v, vi) => {
+            const se = slotEvts(ds, v.id);
+            return (
+              <div key={v.id} onClick={() => openSlot(ds, v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{ borderBottom: vi < VENUES.length - 1 ? `2.5px solid ${B.accent}30` : "none", background: vi % 2 === 0 ? "transparent" : B.warm }}
+                onMouseEnter={e => (e.currentTarget.style.background = B.light)} onMouseLeave={e => (e.currentTarget.style.background = vi % 2 === 0 ? "transparent" : B.warm)}>
                 <div className="flex items-center gap-1 flex-wrap">
-                  <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:`${B.secondary}aa`}}>{v.icon} {v.label}</span>
-                  {se.map(evt=>{const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;return <span key={evt.id+"tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{evt.status==="confirmado"?"CONFIRMADO":"COTIZACIÓN"}</span>})}
+                  <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{ color: `${B.secondary}aa` }}>{v.icon} {v.label}</span>
+                  {se.map(evt => { const si = STATUS_OPTIONS.find(s => s.value === evt.status)!; return <span key={evt.id + "tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{ background: si.bg, color: si.color, border: `1px solid ${si.border}` }}>{evt.status === "confirmado" ? "CONFIRMADO" : "COTIZACIÓN"}</span>; })}
                 </div>
-                {se.map(evt=>{const bgC=evt.status==="confirmado"?"#1d4ed8":"#c2410c";
-                  return <div key={evt.id} onClick={e=>evtClick(e,evt)} className="rounded px-1.5 py-0.5 text-[8.5px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{background:bgC,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
-                    <span>{EVENT_TYPES.find(t=>t.value===evt.type)?.emoji}</span>
-                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">{evt.name||EVENT_TYPES.find(t=>t.value===evt.type)?.label}</span>
+                {se.map(evt => {
+                  const bgC = evt.status === "confirmado" ? "#1d4ed8" : "#c2410c";
+                  return <div key={evt.id} onClick={e => evtClick(e, evt)} className="rounded px-1.5 py-0.5 text-[8.5px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{ background: bgC, boxShadow: "0 1px 3px rgba(0,0,0,.15)" }}>
+                    <span>{EVENT_TYPES.find(t => t.value === evt.type)?.emoji}</span>
+                    <span className="overflow-hidden text-ellipsis whitespace-nowrap">{evt.name || EVENT_TYPES.find(t => t.value === evt.type)?.label}</span>
                     <span className="ml-auto text-[7px] opacity-80">{evt.time}</span>
-                  </div>})}
+                  </div>;
+                })}
               </div>
             );
           })}
@@ -303,172 +494,228 @@ export default function Home(){
     return cells;
   };
 
-  // Week view
-  const renderWeek=()=>{
-    // Get the Monday of the week containing selectedDay
-    const sel=new Date(year,month,selectedDay);
-    const dow=sel.getDay();
-    const mondayOffset=dow===0?-6:1-dow;
-    const monday=new Date(sel);
-    monday.setDate(sel.getDate()+mondayOffset);
-
-    const weekDays:Date[]=[];
-    for(let i=0;i<7;i++){const d=new Date(monday);d.setDate(monday.getDate()+i);weekDays.push(d)}
-
-    return(
-      <div>
-        <div className="text-center mb-4 text-base font-extrabold" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>
-          Semana del {weekDays[0].getDate()} de {MONTHS_ES[weekDays[0].getMonth()]} — {weekDays[6].getDate()} de {MONTHS_ES[weekDays[6].getMonth()]} {weekDays[6].getFullYear()}
-        </div>
-        <div className="grid grid-cols-7 gap-2 items-start">
-          {weekDays.map((wd,wi)=>{
-            const ds=fmtD(wd.getFullYear(),wd.getMonth(),wd.getDate());
-            const isTd=wd.getFullYear()===today.getFullYear()&&wd.getMonth()===today.getMonth()&&wd.getDate()===today.getDate();
-            return(
-              <div key={wi} className="bg-white rounded-lg overflow-hidden flex flex-col min-h-[260px]" style={{border:isTd?`2.5px solid ${B.primary}`:`1px solid ${B.accent}22`,boxShadow:isTd?`0 3px 14px ${B.primary}22`:"0 1px 3px rgba(0,0,0,.04)"}}>
-                <div className="px-2 py-2 text-center shrink-0" style={{background:isTd?B.gDark:B.warm,borderBottom:`2px solid ${B.accent}33`}}>
-                  <div className="text-[10px] font-bold uppercase" style={{color:isTd?B.gold:B.secondary}}>{DAYS_ES[wi]}</div>
-                  <div className="text-lg font-extrabold cursor-pointer" style={{color:isTd?"#fff":B.dark}} onClick={()=>{setSelectedDay(wd.getDate());setMonth(wd.getMonth());setYear(wd.getFullYear());setViewMode("day")}}>{wd.getDate()}</div>
-                  <div className="text-[9px] font-semibold" style={{color:isTd?B.gold:B.secondary}}>{MONTHS_ES[wd.getMonth()].slice(0,3)}</div>
-                </div>
-                {VENUES.map((v,vi)=>{
-                  const se=slotEvts(ds,v.id);
-                  return(
-                    <div key={v.id} onClick={()=>openSlot(ds,v.id)} className="px-1.5 py-1 cursor-pointer transition-colors" style={{borderBottom:vi<VENUES.length-1?`2.5px solid ${B.accent}30`:"none",background:vi%2===0?"transparent":B.warm}}
-                      onMouseEnter={e=>(e.currentTarget.style.background=B.light)} onMouseLeave={e=>(e.currentTarget.style.background=vi%2===0?"transparent":B.warm)}>
-                      <div className="flex items-center gap-1 flex-wrap">
-                        <span className="text-[8px] font-bold uppercase tracking-wide shrink-0" style={{color:`${B.secondary}aa`}}>{v.icon} {v.label}</span>
-                        {se.map(evt=>{const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;return <span key={evt.id+"tag"} className="text-[7px] font-extrabold px-1.5 py-px rounded uppercase" style={{background:si.bg,color:si.color,border:`1px solid ${si.border}`}}>{evt.status==="confirmado"?"CONFIRMADO":"COTIZACIÓN"}</span>})}
-                      </div>
-                      {se.map(evt=>{const bgC=evt.status==="confirmado"?"#1d4ed8":"#c2410c";
-                        return <div key={evt.id} onClick={e=>evtClick(e,evt)} className="rounded px-1 py-0.5 text-[8px] font-bold text-white mt-0.5 flex items-center gap-1 cursor-pointer" style={{background:bgC,boxShadow:"0 1px 3px rgba(0,0,0,.15)"}}>
-                          <span>{EVENT_TYPES.find(t=>t.value===evt.type)?.emoji}</span>
-                          <span className="overflow-hidden text-ellipsis whitespace-nowrap">{evt.name||EVENT_TYPES.find(t=>t.value===evt.type)?.label}</span>
-                        </div>})}
+  // Day view
+  const renderDay = () => {
+    const d = new Date(year, month, today.getMonth() === month && today.getFullYear() === year ? today.getDate() : 1);
+    const ds = fmtD(d.getFullYear(), d.getMonth(), d.getDate()), dowIdx = d.getDay() === 0 ? 6 : d.getDay() - 1;
+    return (
+      <div className="max-w-[850px] mx-auto">
+        <div className="text-center mb-5 text-xl font-extrabold" style={{ color: B.dark, fontFamily: "'Playfair Display',serif" }}>{DAYS_ES[dowIdx]} {d.getDate()} de {MONTHS_ES[d.getMonth()]} {d.getFullYear()}</div>
+        {VENUES.map(v => { const se = slotEvts(ds, v.id); return (
+          <div key={v.id} className="bg-white rounded-xl mb-3 overflow-hidden" style={{ border: `1px solid ${B.accent}22` }}>
+            <div className="px-5 py-3 flex justify-between items-center" style={{ background: B.warm, borderBottom: `2.5px solid ${B.accent}33` }}>
+              <span className="text-base font-bold" style={{ color: B.dark }}>{v.icon} {v.label}</span>
+              <button onClick={() => openSlot(ds, v.id)} className="text-xs font-bold px-4 py-2 rounded-lg text-white" style={{ background: B.gDark }}>+ Evento</button>
+            </div>
+            <div className="px-5 py-3">
+              {se.length === 0 ? <div className="text-gray-400 text-sm italic py-3">Sin eventos programados</div>
+                : se.map(evt => { const ti = EVENT_TYPES.find(t => t.value === evt.type)!; const si = STATUS_OPTIONS.find(s => s.value === evt.status)!; const ta = evt.advances?.reduce((s: number, a: Advance) => s + (a.amount || 0), 0) || 0;
+                  return <div key={evt.id} className="flex items-center gap-3 p-3 rounded-lg mb-2 cursor-pointer" style={{ border: `2px solid ${si.border}`, background: `${si.bg}55` }}>
+                    <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 text-white" style={{ background: si.color }}>{ti.emoji}</div>
+                    <div className="flex-1" onClick={() => editFrom(evt)}>
+                      <div className="font-bold text-sm" style={{ color: B.dark }}>{evt.name || ti.label}</div>
+                      <div className="text-xs text-gray-500 mt-0.5">{evt.time} · {evt.guests} pers. · S/ {evt.amount || "0"}{ta > 0 && ` · Adel: S/ ${ta.toFixed(2)}`}</div>
                     </div>
-                  );
+                    <span className="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase shrink-0" style={{ background: si.bg, color: si.color, border: `1.5px solid ${si.border}` }}>{si.label}</span>
+                    <button onClick={e => { e.stopPropagation(); handleDel(evt.id!); }} className="text-red-500 text-lg p-1 shrink-0" title="Eliminar">🗑</button>
+                  </div>;
                 })}
+            </div>
+          </div>
+        ); })}
+      </div>
+    );
+  };
+
+  // ── Inventory Tab Renderer ──
+  const renderInventory = () => (
+    <div className="px-6 py-4 pb-16">
+      {/* Stats */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        {[
+          { l: "Total Productos", v: invStats.total, icon: "📦", c: B.gold, bg: `${B.gold}15` },
+          { l: "Stock Bajo", v: invStats.low, icon: "⚠️", c: "#f59e0b", bg: "#fffbeb" },
+          { l: "Agotados", v: invStats.out, icon: "🚫", c: "#ef4444", bg: "#fef2f2" },
+          { l: "Valor Total", v: `S/ ${invStats.totalValue.toFixed(2)}`, icon: "💰", c: "#16a34a", bg: "#f0fdf4" },
+        ].map(s => (
+          <div key={s.l} className="rounded-xl p-4" style={{ background: s.bg, border: `1px solid ${s.c}22` }}>
+            <div className="text-2xl mb-1">{s.icon}</div>
+            <div className="text-xl font-extrabold" style={{ color: s.c }}>{s.v}</div>
+            <div className="text-[10px] font-bold uppercase tracking-wide mt-0.5" style={{ color: `${s.c}bb` }}>{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Toolbar */}
+      <div className="flex items-center gap-3 mb-4 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">🔍</span>
+          <input value={invSearch} onChange={e => setInvSearch(e.target.value)} placeholder="Buscar producto..." className="w-full pl-10 pr-3 py-2.5 rounded-lg text-sm border" style={{ borderColor: `${B.accent}33` }} />
+        </div>
+        <select value={invCatFilter} onChange={e => setInvCatFilter(e.target.value)} className="px-3 py-2.5 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>
+          <option value="all">Todas las categorías</option>
+          {INVENTORY_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.icon} {c.label}</option>)}
+        </select>
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: `${B.accent}15` }}>
+          {([["all", "Todos"], ["low", "Stock Bajo"], ["out", "Agotados"]] as const).map(([v, l]) => (
+            <button key={v} onClick={() => setInvStockFilter(v)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: invStockFilter === v ? "#fff" : "transparent", color: invStockFilter === v ? B.primary : "#64748b", boxShadow: invStockFilter === v ? "0 1px 4px rgba(0,0,0,.08)" : "none" }}>{l}</button>
+          ))}
+        </div>
+        <button onClick={() => { setEditInvItem(null); setInvModalOpen(true); }} className="px-5 py-2.5 rounded-lg text-sm font-bold text-white" style={{ background: B.gDark, boxShadow: "0 4px 12px rgba(61,26,0,.2)" }}>+ Nuevo Producto</button>
+      </div>
+
+      {/* Inventory List */}
+      {invLoading ? <div className="text-center py-20 text-lg font-bold" style={{ color: B.secondary }}>Cargando inventario...</div> : (
+        <div className="bg-white rounded-xl overflow-hidden" style={{ border: `1px solid ${B.accent}22`, boxShadow: "0 2px 8px rgba(0,0,0,.04)" }}>
+          {/* Table Header */}
+          <div className="grid grid-cols-[1fr_120px_100px_100px_120px_80px] gap-2 px-5 py-3 text-[10px] font-bold uppercase tracking-wide" style={{ background: B.warm, borderBottom: `2px solid ${B.accent}22`, color: B.secondary }}>
+            <span>Producto</span><span>Categoría</span><span className="text-center">Cantidad</span><span className="text-center">Mín. Stock</span><span className="text-right">Valor</span><span className="text-center">Acciones</span>
+          </div>
+          {filteredInv.length === 0 ? (
+            <div className="text-center py-12 text-gray-400">
+              <div className="text-4xl mb-2">📦</div>
+              <div className="text-sm font-semibold">No se encontraron productos</div>
+              <div className="text-xs mt-1">Agrega un nuevo producto o cambia los filtros</div>
+            </div>
+          ) : filteredInv.map(item => {
+            const cat = INVENTORY_CATEGORIES.find(c => c.value === item.category) || INVENTORY_CATEGORIES[INVENTORY_CATEGORIES.length - 1];
+            const isLow = item.quantity > 0 && item.quantity <= item.min_stock;
+            const isOut = item.quantity === 0;
+            const statusColor = isOut ? "#ef4444" : isLow ? "#f59e0b" : "#16a34a";
+            const statusBg = isOut ? "#fef2f2" : isLow ? "#fffbeb" : "#f0fdf4";
+            const statusLabel = isOut ? "AGOTADO" : isLow ? "BAJO" : "OK";
+            const totalVal = item.quantity * item.cost_per_unit;
+            return (
+              <div key={item.id} className="grid grid-cols-[1fr_120px_100px_100px_120px_80px] gap-2 px-5 py-3 items-center text-sm" style={{ borderBottom: `1px solid ${B.accent}11` }}
+                onMouseEnter={e => (e.currentTarget.style.background = B.warm)} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
+                <div>
+                  <div className="font-bold" style={{ color: B.dark }}>{item.name}</div>
+                  {item.notes && <div className="text-[11px] text-gray-400 mt-0.5 truncate max-w-[250px]">{item.notes}</div>}
+                </div>
+                <span className="text-xs font-semibold" style={{ color: "#64748b" }}>{cat.icon} {cat.label}</span>
+                <div className="text-center">
+                  <span className="inline-block px-2.5 py-1 rounded-full text-xs font-extrabold" style={{ background: statusBg, color: statusColor, border: `1.5px solid ${statusColor}33` }}>
+                    {item.quantity} {item.unit}
+                  </span>
+                </div>
+                <div className="text-center text-xs text-gray-500">{item.min_stock} {item.unit}
+                  <div className="text-[9px] font-bold mt-0.5" style={{ color: statusColor }}>{statusLabel}</div>
+                </div>
+                <div className="text-right text-xs font-semibold" style={{ color: B.dark }}>S/ {totalVal.toFixed(2)}</div>
+                <div className="flex gap-1 justify-center">
+                  <button onClick={() => { setEditInvItem(item); setInvModalOpen(true); }} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm" style={{ background: B.light, color: B.primary }} title="Editar">✏</button>
+                  <button onClick={() => handleInvDel(item.id!)} className="w-8 h-8 rounded-lg flex items-center justify-center text-sm bg-red-50 text-red-500" title="Eliminar">🗑</button>
+                </div>
               </div>
             );
           })}
         </div>
-      </div>
-    );
-  };
+      )}
 
-  // Day view
-  const renderDay=()=>{
-    const d=new Date(year,month,selectedDay);
-    const ds=fmtD(d.getFullYear(),d.getMonth(),d.getDate()),dowIdx=d.getDay()===0?6:d.getDay()-1;
-    return(
-      <div className="max-w-[850px] mx-auto">
-        <div className="text-center mb-5 text-xl font-extrabold" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>{DAYS_ES[dowIdx]} {d.getDate()} de {MONTHS_ES[d.getMonth()]} {d.getFullYear()}</div>
-        {VENUES.map(v=>{const se=slotEvts(ds,v.id);return(
-          <div key={v.id} className="bg-white rounded-xl mb-3 overflow-hidden" style={{border:`1px solid ${B.accent}22`}}>
-            <div className="px-5 py-3 flex justify-between items-center" style={{background:B.warm,borderBottom:`2.5px solid ${B.accent}33`}}>
-              <span className="text-base font-bold" style={{color:B.dark}}>{v.icon} {v.label}</span>
-              <button onClick={()=>openSlot(ds,v.id)} className="text-xs font-bold px-4 py-2 rounded-lg text-white" style={{background:B.gDark}}>+ Evento</button>
-            </div>
-            <div className="px-5 py-3">
-              {se.length===0?<div className="text-gray-400 text-sm italic py-3">Sin eventos programados</div>
-              :se.map(evt=>{const ti=EVENT_TYPES.find(t=>t.value===evt.type)!;const si=STATUS_OPTIONS.find(s=>s.value===evt.status)!;const ta=evt.advances?.reduce((s:number,a:Advance)=>s+(a.amount||0),0)||0;
-                return <div key={evt.id} className="flex items-center gap-3 p-3 rounded-lg mb-2 cursor-pointer" style={{border:`2px solid ${si.border}`,background:`${si.bg}55`}}>
-                  <div className="w-11 h-11 rounded-xl flex items-center justify-center text-2xl shrink-0 text-white" style={{background:si.color}}>{ti.emoji}</div>
-                  <div className="flex-1" onClick={()=>editFrom(evt)}>
-                    <div className="font-bold text-sm" style={{color:B.dark}}>{evt.name||ti.label}</div>
-                    <div className="text-xs text-gray-500 mt-0.5">{evt.time} · {evt.guests} pers. · S/ {evt.amount||"0"}{ta>0&&` · Adel: S/ ${ta.toFixed(2)}`}</div>
-                  </div>
-                  <span className="px-3 py-1 rounded-full text-[11px] font-extrabold uppercase shrink-0" style={{background:si.bg,color:si.color,border:`1.5px solid ${si.border}`}}>{si.label}</span>
-                  <button onClick={e=>{e.stopPropagation();handleDel(evt.id!)}} className="text-red-500 text-lg p-1 shrink-0" title="Eliminar">🗑</button>
-                </div>})}
-            </div>
-          </div>
-        )})}
-      </div>
-    );
-  };
+      {/* Inventory Modal */}
+      <Modal open={invModalOpen} onClose={() => { setInvModalOpen(false); setEditInvItem(null); }} title={editInvItem ? "Editar Producto" : "Nuevo Producto"}>
+        <InventoryForm item={editInvItem} onSave={handleInvSave} onClose={() => { setInvModalOpen(false); setEditInvItem(null); }} />
+      </Modal>
+    </div>
+  );
 
-  const totE=events.length,conf=events.filter(e=>e.status==="confirmado").length,quot=events.filter(e=>e.status==="cotizacion").length;
+  const totE = events.length, conf = events.filter(e => e.status === "confirmado").length, quot = events.filter(e => e.status === "cotizacion").length;
 
-  return(
+  return (
     <div className="min-h-screen relative">
       {/* HEADER */}
-      <div className="px-6 py-4 flex items-center justify-between relative overflow-hidden" style={{background:B.gDark,boxShadow:"0 4px 20px rgba(61,26,0,.2)"}}>
-        <div className="absolute -right-5 -top-5 opacity-[.06] pointer-events-none"><svg viewBox="0 0 200 200" width="180" height="180"><polygon points="100,10 115,75 180,55 130,100 180,145 115,125 100,190 85,125 20,145 70,100 20,55 85,75" fill="#f0ad1b"/></svg></div>
+      <div className="px-6 py-4 flex items-center justify-between relative overflow-hidden" style={{ background: B.gDark, boxShadow: "0 4px 20px rgba(61,26,0,.2)" }}>
+        <div className="absolute -right-5 -top-5 opacity-[.06] pointer-events-none"><svg viewBox="0 0 200 200" width="180" height="180"><polygon points="100,10 115,75 180,55 130,100 180,145 115,125 100,190 85,125 20,145 70,100 20,55 85,75" fill="#f0ad1b" /></svg></div>
         <div className="flex items-center gap-3.5 z-10">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{background:`linear-gradient(135deg,${B.gold},${B.accent})`,boxShadow:`0 4px 12px ${B.accent}44`}}>
-            <svg viewBox="0 0 200 200" width="32" height="32"><polygon points="100,15 113,72 175,58 128,100 175,142 113,128 100,185 87,128 25,142 72,100 25,58 87,72" fill="#3d1a00"/><polygon points="100,40 108,78 145,70 122,100 145,130 108,122 100,160 92,122 55,130 78,100 55,70 92,78" fill="#6b2f0a"/></svg>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `linear-gradient(135deg,${B.gold},${B.accent})`, boxShadow: `0 4px 12px ${B.accent}44` }}>
+            <svg viewBox="0 0 200 200" width="32" height="32"><polygon points="100,15 113,72 175,58 128,100 175,142 113,128 100,185 87,128 25,142 72,100 25,58 87,72" fill="#3d1a00" /><polygon points="100,40 108,78 145,70 122,100 145,130 108,122 100,160 92,122 55,130 78,100 55,70 92,78" fill="#6b2f0a" /></svg>
           </div>
-          <div><h1 className="text-xl font-black text-white tracking-wide" style={{fontFamily:"'Playfair Display',serif"}}>CENTRO DE CONVENCIONES</h1><p className="text-sm font-extrabold tracking-[4px] uppercase" style={{color:B.gold}}>TINOCO</p></div>
+          <div><h1 className="text-xl font-black text-white tracking-wide" style={{ fontFamily: "'Playfair Display',serif" }}>CENTRO DE CONVENCIONES</h1><p className="text-sm font-extrabold tracking-[4px] uppercase" style={{ color: B.gold }}>TINOCO</p></div>
         </div>
-        <div className="flex gap-2.5 z-10">
-          {[{l:"Total",v:totE,c:B.gold},{l:"Confirmados",v:conf,c:"#60a5fa"},{l:"Cotización",v:quot,c:"#fb923c"}].map(s=><div key={s.l} className="px-4 py-2 rounded-lg text-center" style={{background:`${s.c}22`}}><div className="text-xl font-extrabold" style={{color:s.c}}>{s.v}</div><div className="text-[9px] font-bold uppercase tracking-wide opacity-80" style={{color:s.c}}>{s.l}</div></div>)}
-        </div>
-      </div>
-
-      {/* TOOLBAR */}
-      <div className="px-6 py-3 flex items-center justify-between flex-wrap gap-2.5" style={{background:"rgba(255,255,255,.85)",borderBottom:`2px solid ${B.accent}22`,backdropFilter:"blur(8px)"}}>
-        <div className="flex items-center gap-2">
-          <button onClick={prev} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>←</button>
-          <h2 onClick={()=>setYearView(!yearView)} className="text-xl font-extrabold min-w-[200px] text-center cursor-pointer" style={{color:B.dark,fontFamily:"'Playfair Display',serif"}}>{viewMode==="day"?`${selectedDay} ${MONTHS_ES[month]} ${year}`:MONTHS_ES[month]} {viewMode!=="day"?year:""}</h2>
-          <button onClick={next} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>→</button>
-          <button onClick={()=>setYearView(!yearView)} className="px-3.5 py-1.5 rounded-lg text-xs font-semibold" style={{border:`1px solid ${B.accent}33`,background:yearView?B.gAcc:"#fff",color:yearView?"#fff":B.primary}}>{year}</button>
-          <button onClick={()=>{setYear(today.getFullYear());setMonth(today.getMonth());setSelectedDay(today.getDate())}} className="px-3.5 py-1.5 rounded-lg text-xs font-bold" style={{border:`1px solid ${B.accent}33`,background:"#fff",color:B.primary}}>Hoy</button>
-        </div>
-        <div className="flex gap-1 p-1 rounded-lg" style={{background:`${B.accent}15`}}>
-          {[{id:"month",l:"Mes"},{id:"week",l:"Semana"},{id:"day",l:"Día"}].map(v=><button key={v.id} onClick={()=>{setViewMode(v.id);setYearView(false)}} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={{background:viewMode===v.id?"#fff":"transparent",color:viewMode===v.id?B.primary:"#64748b",boxShadow:viewMode===v.id?"0 1px 4px rgba(0,0,0,.08)":"none"}}>{v.l}</button>)}
-        </div>
-        <div className="flex gap-2 items-center">
-          <select value={fType} onChange={e=>setFType(e.target.value)} className="px-3 py-2 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>
-            <option value="all">Todos los tipos</option>{EVENT_TYPES.map(t=><option key={t.value} value={t.value}>{t.emoji} {t.label}</option>)}
-          </select>
-          <select value={fVenue} onChange={e=>setFVenue(e.target.value)} className="px-3 py-2 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{border:`1px solid ${B.accent}33`,color:B.dark}}>
-            <option value="all">Todos los espacios</option>{VENUES.map(v=><option key={v.id} value={v.id}>{v.icon} {v.label}</option>)}
-          </select>
+        {/* Tab Switcher + Stats */}
+        <div className="flex items-center gap-4 z-10">
+          <div className="flex gap-1 p-1 rounded-lg" style={{ background: "rgba(255,255,255,.12)" }}>
+            {([["calendar", "📅 Eventos"], ["inventory", "📦 Inventario"]] as const).map(([id, label]) => (
+              <button key={id} onClick={() => setActiveTab(id)} className="px-4 py-2 rounded-lg text-xs font-bold transition-all" style={{ background: activeTab === id ? "rgba(255,255,255,.95)" : "transparent", color: activeTab === id ? B.primary : "rgba(255,255,255,.7)", boxShadow: activeTab === id ? "0 2px 8px rgba(0,0,0,.15)" : "none" }}>{label}</button>
+            ))}
+          </div>
+          {activeTab === "calendar" && (
+            <div className="flex gap-2.5">
+              {[{ l: "Total", v: totE, c: B.gold }, { l: "Confirmados", v: conf, c: "#60a5fa" }, { l: "Cotización", v: quot, c: "#fb923c" }].map(s => <div key={s.l} className="px-4 py-2 rounded-lg text-center" style={{ background: `${s.c}22` }}><div className="text-xl font-extrabold" style={{ color: s.c }}>{s.v}</div><div className="text-[9px] font-bold uppercase tracking-wide opacity-80" style={{ color: s.c }}>{s.l}</div></div>)}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* CONTENT */}
-      <div className="px-6 py-4 pb-16 relative">
-        {/* Watermark */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[.03] pointer-events-none z-0 w-[500px] h-[500px]">
-          <svg viewBox="0 0 200 200" width="500" height="500"><polygon points="100,10 115,75 180,55 130,100 180,145 115,125 100,190 85,125 20,145 70,100 20,55 85,75" fill="#b8540c"/><polygon points="100,30 112,78 160,65 125,100 160,135 112,122 100,170 88,122 40,135 75,100 40,65 88,78" fill="#d4770a"/><polygon points="100,50 108,82 140,75 118,100 140,125 108,118 100,150 92,118 60,125 82,100 60,75 92,82" fill="#e8960f"/><ellipse cx="100" cy="165" rx="50" ry="12" fill="#b8540c"/></svg>
-        </div>
+      {/* CALENDAR TAB */}
+      {activeTab === "calendar" && (
+        <>
+          {/* TOOLBAR */}
+          <div className="px-6 py-3 flex items-center justify-between flex-wrap gap-2.5" style={{ background: "rgba(255,255,255,.85)", borderBottom: `2px solid ${B.accent}22`, backdropFilter: "blur(8px)" }}>
+            <div className="flex items-center gap-2">
+              <button onClick={prev} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>←</button>
+              <h2 onClick={() => setYearView(!yearView)} className="text-xl font-extrabold min-w-[200px] text-center cursor-pointer" style={{ color: B.dark, fontFamily: "'Playfair Display',serif" }}>{MONTHS_ES[month]} {year}</h2>
+              <button onClick={next} className="w-9 h-9 rounded-lg bg-white flex items-center justify-center text-base" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>→</button>
+              <button onClick={() => setYearView(!yearView)} className="px-3.5 py-1.5 rounded-lg text-xs font-semibold" style={{ border: `1px solid ${B.accent}33`, background: yearView ? B.gAcc : "#fff", color: yearView ? "#fff" : B.primary }}>{year}</button>
+            </div>
+            <div className="flex gap-1 p-1 rounded-lg" style={{ background: `${B.accent}15` }}>
+              {[{ id: "month", l: "Mes" }, { id: "week", l: "Semana" }, { id: "day", l: "Día" }].map(v => <button key={v.id} onClick={() => { setViewMode(v.id); setYearView(false); }} className="px-4 py-1.5 rounded-lg text-xs font-bold" style={{ background: viewMode === v.id ? "#fff" : "transparent", color: viewMode === v.id ? B.primary : "#64748b", boxShadow: viewMode === v.id ? "0 1px 4px rgba(0,0,0,.08)" : "none" }}>{v.l}</button>)}
+            </div>
+            <div className="flex gap-2 items-center">
+              <select value={fType} onChange={e => setFType(e.target.value)} className="px-3 py-2 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>
+                <option value="all">Todos los tipos</option>{EVENT_TYPES.map(t => <option key={t.value} value={t.value}>{t.emoji} {t.label}</option>)}
+              </select>
+              <select value={fVenue} onChange={e => setFVenue(e.target.value)} className="px-3 py-2 rounded-lg text-xs font-semibold bg-white cursor-pointer" style={{ border: `1px solid ${B.accent}33`, color: B.dark }}>
+                <option value="all">Todos los espacios</option>{VENUES.map(v => <option key={v.id} value={v.id}>{v.icon} {v.label}</option>)}
+              </select>
+            </div>
+          </div>
 
-        {loading?<div className="text-center py-20 text-lg font-bold" style={{color:B.secondary}}>Cargando eventos...</div>
-        :yearView?renderYear():(
-          <>
-            {viewMode==="month"&&<>
-              <div className="grid grid-cols-7 gap-2 mb-2">{DAYS_ES.map((d,i)=><div key={d} className="text-center py-2 text-[11px] font-extrabold uppercase tracking-wide" style={{color:i>=5?B.primary:B.secondary}}>{d}</div>)}</div>
-              <div className="grid grid-cols-7 gap-2 items-start">{renderMonth()}</div>
-            </>}
-            {viewMode==="week"&&renderWeek()}
-            {viewMode==="day"&&renderDay()}
-          </>
-        )}
+          {/* CONTENT */}
+          <div className="px-6 py-4 pb-16 relative">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 opacity-[.03] pointer-events-none z-0 w-[500px] h-[500px]">
+              <svg viewBox="0 0 200 200" width="500" height="500"><polygon points="100,10 115,75 180,55 130,100 180,145 115,125 100,190 85,125 20,145 70,100 20,55 85,75" fill="#b8540c" /><polygon points="100,30 112,78 160,65 125,100 160,135 112,122 100,170 88,122 40,135 75,100 40,65 88,78" fill="#d4770a" /><polygon points="100,50 108,82 140,75 118,100 140,125 108,118 100,150 92,118 60,125 82,100 60,75 92,82" fill="#e8960f" /><ellipse cx="100" cy="165" rx="50" ry="12" fill="#b8540c" /></svg>
+            </div>
 
-        {/* Legend */}
-        <div className="mt-5 p-3.5 rounded-xl flex gap-5 items-center flex-wrap" style={{background:"rgba(255,255,255,.85)",border:`1px solid ${B.accent}22`,backdropFilter:"blur(4px)"}}>
-          <span className="text-[11px] font-bold uppercase tracking-wide" style={{color:B.secondary}}>Espacios:</span>
-          {VENUES.map(v=><span key={v.id} className="text-xs font-semibold" style={{color:B.dark}}>{v.icon} {v.label}</span>)}
-          <span className="pl-4" style={{borderLeft:`1px solid ${B.accent}33`}}/>
-          <span className="text-[11px] font-bold uppercase tracking-wide" style={{color:B.secondary}}>Estados:</span>
-          {STATUS_OPTIONS.map(s=><span key={s.value} className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold" style={{background:s.bg,color:s.color,border:`1px solid ${s.border}`}}>{s.label}</span>)}
-        </div>
-      </div>
+            {loading ? <div className="text-center py-20 text-lg font-bold" style={{ color: B.secondary }}>Cargando eventos...</div>
+              : yearView ? renderYear() : (
+                <>
+                  {viewMode === "month" && <>
+                    <div className="grid grid-cols-7 gap-2 mb-2">{DAYS_ES.map((d, i) => <div key={d} className="text-center py-2 text-[11px] font-extrabold uppercase tracking-wide" style={{ color: i >= 5 ? B.primary : B.secondary }}>{d}</div>)}</div>
+                    <div className="grid grid-cols-7 gap-2 items-start">{renderMonth()}</div>
+                  </>}
+                  {viewMode === "day" && renderDay()}
+                </>
+              )}
 
-      {/* Modal */}
-      <Modal open={modalOpen} onClose={()=>{setModalOpen(false);setEditEvt(null)}} title={editEvt?"Editar Evento":"Nuevo Evento"}>
-        <EventForm event={editEvt} dateStr={selSlot.date} venue={selSlot.venue} onSave={handleSave} onDelete={handleDel} onClose={()=>{setModalOpen(false);setEditEvt(null)}} events={events}/>
-      </Modal>
+            {/* Legend */}
+            <div className="mt-5 p-3.5 rounded-xl flex gap-5 items-center flex-wrap" style={{ background: "rgba(255,255,255,.85)", border: `1px solid ${B.accent}22`, backdropFilter: "blur(4px)" }}>
+              <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.secondary }}>Espacios:</span>
+              {VENUES.map(v => <span key={v.id} className="text-xs font-semibold" style={{ color: B.dark }}>{v.icon} {v.label}</span>)}
+              <span className="pl-4" style={{ borderLeft: `1px solid ${B.accent}33` }} />
+              <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: B.secondary }}>Estados:</span>
+              {STATUS_OPTIONS.map(s => <span key={s.value} className="inline-flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-bold" style={{ background: s.bg, color: s.color, border: `1px solid ${s.border}` }}>{s.label}</span>)}
+            </div>
+          </div>
 
-      {/* Detail Popover */}
-      {detEvt&&<div className="fixed inset-0 z-[900]" onClick={()=>setDetEvt(null)}>
-        <div onClick={e=>e.stopPropagation()} className="absolute bg-white rounded-xl p-4 z-[901]" style={{left:Math.min(detPos.x,typeof window!=="undefined"?window.innerWidth-360:400),top:Math.min(detPos.y,typeof window!=="undefined"?window.innerHeight-400:400),boxShadow:"0 20px 40px rgba(61,26,0,.15)",animation:"slideUp .2s ease",border:`1px solid ${B.accent}22`}}>
-          <EventDetail event={detEvt} onEdit={editFrom} onDelete={handleDel}/>
-        </div>
-      </div>}
+          {/* Event Modal */}
+          <Modal open={modalOpen} onClose={() => { setModalOpen(false); setEditEvt(null); }} title={editEvt ? "Editar Evento" : "Nuevo Evento"}>
+            <EventForm event={editEvt} dateStr={selSlot.date} venue={selSlot.venue} onSave={handleSave} onDelete={handleDel} onClose={() => { setModalOpen(false); setEditEvt(null); }} events={events} />
+          </Modal>
+
+          {/* Detail Popover */}
+          {detEvt && <div className="fixed inset-0 z-[900]" onClick={() => setDetEvt(null)}>
+            <div onClick={e => e.stopPropagation()} className="absolute bg-white rounded-xl p-4 z-[901]" style={{ left: Math.min(detPos.x, typeof window !== "undefined" ? window.innerWidth - 360 : 400), top: Math.min(detPos.y, typeof window !== "undefined" ? window.innerHeight - 400 : 400), boxShadow: "0 20px 40px rgba(61,26,0,.15)", animation: "slideUp .2s ease", border: `1px solid ${B.accent}22` }}>
+              <EventDetail event={detEvt} onEdit={editFrom} onDelete={handleDel} />
+            </div>
+          </div>}
+        </>
+      )}
+
+      {/* INVENTORY TAB */}
+      {activeTab === "inventory" && renderInventory()}
     </div>
   );
 }
+
 
