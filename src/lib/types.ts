@@ -20,6 +20,8 @@ export interface EventData {
   status: string;
   amount: number;
   advances: Advance[];
+  registered_by?: string;
+  registered_at?: string;
 }
 
 export interface InventoryItem {
@@ -35,3 +37,23 @@ export interface InventoryItem {
   updated_at?: string;
 }
 
+export interface ProspectionRecord {
+  id?: string;
+  name: string;
+  type: string;
+  sector: string;
+  district: string;
+  address: string;
+  level: string;
+  contact1: string;
+  phone1: string;
+  contact2: string;
+  phone2: string;
+  status: string;
+  last_contact: string;
+  next_contact: string;
+  next_step: string;
+  comments: string;
+  created_at?: string;
+  updated_at?: string;
+}
