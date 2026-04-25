@@ -57,3 +57,13 @@ export interface ProspectionRecord {
   created_at?: string;
   updated_at?: string;
 }
+
+export interface AppUser {
+  id?: string;
+  name: string;
+  email: string;
+  password_hash: string;
+  role: string;
+  active: boolean;
+  created_at?: string;
+}
