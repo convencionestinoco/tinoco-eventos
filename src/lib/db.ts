@@ -1,14 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-import { EventData, InventoryItem } from "./types";
+import { EventData, InventoryItem, ProspectionRecord } from "./types";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// ── EVENTS (optimized: query by date range instead of fetching all) ──
+// ── EVENTS ──
 
-/** Fetch events only for a specific month — drastically reduces reads */
 export async function fetchEventsByMonth(year: number, month: number): Promise<EventData[]> {
   const startDate = `${year}-${String(month + 1).padStart(2, "0")}-01`;
   const lastDay = new Date(year, month + 1, 0).getDate();
@@ -25,7 +24,6 @@ export async function fetchEventsByMonth(year: number, month: number): Promise<E
   return (data || []).map(parseEvent);
 }
 
-/** Fetch events for a date range (used for week view or year overview) */
 export async function fetchEventsByRange(startDate: string, endDate: string): Promise<EventData[]> {
   const { data, error } = await supabase
     .from("events")
@@ -38,7 +36,6 @@ export async function fetchEventsByRange(startDate: string, endDate: string): Pr
   return (data || []).map(parseEvent);
 }
 
-/** Fetch counts per month for year overview (lightweight query) */
 export async function fetchEventCountsByYear(year: number): Promise<Record<number, number>> {
   const startDate = `${year}-01-01`;
   const endDate = `${year}-12-31`;
@@ -59,7 +56,6 @@ export async function fetchEventCountsByYear(year: number): Promise<Record<numbe
   return counts;
 }
 
-/** Parse event from DB row — ensures advances is always an array */
 function parseEvent(row: any): EventData {
   return {
     ...row,
@@ -68,13 +64,13 @@ function parseEvent(row: any): EventData {
     contact_number: row.contact_number || "",
     proforma_number: row.proforma_number || "",
     contract_number: row.contract_number || "",
+    registered_by: row.registered_by || "",
+    registered_at: row.registered_at || "",
   };
 }
 
-/** Save event — advances stored as JSONB column */
 export async function saveEvent(event: EventData): Promise<EventData> {
-  // Prepare payload with advances as JSON
-  const payload = {
+  const payload: any = {
     type: event.type,
     name: event.name,
     client_name: event.client_name || "",
@@ -90,6 +86,7 @@ export async function saveEvent(event: EventData): Promise<EventData> {
     status: event.status,
     amount: event.amount || 0,
     advances: event.advances || [],
+    registered_by: event.registered_by || "",
   };
 
   if (event.id) {
@@ -102,6 +99,7 @@ export async function saveEvent(event: EventData): Promise<EventData> {
     if (error) throw error;
     return parseEvent(data);
   } else {
+    payload.registered_at = new Date().toISOString();
     const { data, error } = await supabase
       .from("events")
       .insert(payload)
@@ -112,14 +110,12 @@ export async function saveEvent(event: EventData): Promise<EventData> {
   }
 }
 
-/** Delete event — returns the id for local state removal */
 export async function deleteEvent(id: string): Promise<string> {
   const { error } = await supabase.from("events").delete().eq("id", id);
   if (error) throw error;
   return id;
 }
 
-// ── KEEP LEGACY fetchEvents for backward compatibility ──
 export async function fetchEvents(): Promise<EventData[]> {
   const { data, error } = await supabase
     .from("events")
@@ -177,6 +173,58 @@ export async function deleteInventoryItem(id: string): Promise<string> {
   return id;
 }
 
+// ── PROSPECTION ──
 
+export async function fetchProspectionRecords(): Promise<ProspectionRecord[]> {
+  const { data, error } = await supabase
+    .from("prospection")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data || []) as ProspectionRecord[];
+}
 
+export async function saveProspectionRecord(record: ProspectionRecord): Promise<ProspectionRecord> {
+  const payload = {
+    name: record.name,
+    type: record.type || "Colegio",
+    sector: record.sector || "Privado",
+    district: record.district || "Ayacucho",
+    address: record.address || "",
+    level: record.level || "",
+    contact1: record.contact1 || "",
+    phone1: record.phone1 || "",
+    contact2: record.contact2 || "",
+    phone2: record.phone2 || "",
+    status: record.status || "Pendiente de contacto",
+    last_contact: record.last_contact || null,
+    next_contact: record.next_contact || null,
+    next_step: record.next_step || "",
+    comments: record.comments || "",
+  };
 
+  if (record.id) {
+    const { data, error } = await supabase
+      .from("prospection")
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq("id", record.id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data as ProspectionRecord;
+  } else {
+    const { data, error } = await supabase
+      .from("prospection")
+      .insert({ ...payload, created_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data as ProspectionRecord;
+  }
+}
+
+export async function deleteProspectionRecord(id: string): Promise<string> {
+  const { error } = await supabase.from("prospection").delete().eq("id", id);
+  if (error) throw error;
+  return id;
+}
