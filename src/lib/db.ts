@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { EventData, InventoryItem, ProspectionRecord, AppUser } from "@/lib/types";
 import { EventData, InventoryItem, ProspectionRecord, AppUser } from "./types";
 
 const supabase = createClient(
