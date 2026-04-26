@@ -186,3 +186,4 @@ export async function deleteAppUser(id: string): Promise<string> {
   if (error) throw error;
   return id;
 }
+
