@@ -1,7 +1,17 @@
-"dependencies": {
-  "next": "...",
-  "react": "...",
-  "react-dom": "...",
-  "@supabase/supabase-js": "...",
-  "xlsx": "^0.18.5"
+{
+  "name": "tinoco-eventos",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "15.1.0",
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0",
+    "@supabase/supabase-js": "^2.0.0",
+    "xlsx": "^0.18.5"
+  }
 }
