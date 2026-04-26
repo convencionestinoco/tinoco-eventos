@@ -1,6 +1,5 @@
-import { EventData, InventoryItem, ProspectionRecord, AppUser } from "@/lib/types";
-import { EventData, InventoryItem, ProspectionRecord, AppUser } from "./types";
-
+line 1: import { EventData, ... } from "@/lib/types";
+line 2: import { EventData, ... } from "./types";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
