@@ -1,5 +1,6 @@
-line 1: import { EventData, ... } from "@/lib/types";
-line 2: import { EventData, ... } from "./types";
+import { createClient } from "@supabase/supabase-js";
+import { EventData, InventoryItem, ProspectionRecord, AppUser } from "./types";
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -185,4 +186,3 @@ export async function deleteAppUser(id: string): Promise<string> {
   if (error) throw error;
   return id;
 }
-
