@@ -8,9 +8,8 @@ import {
   fetchInventoryItems, saveInventoryItem, deleteInventoryItem,
   fetchProspectionRecords, saveProspectionRecord, deleteProspectionRecord,
   fetchAppUsers, loginUser, saveAppUser, deleteAppUser,
-} from "@/lib/db";
-import { EventData, Advance, InventoryItem, ProspectionRecord, AppUser } from "@/lib/types";
-
+} from "../lib/db";
+import { EventData, Advance, InventoryItem, ProspectionRecord, AppUser } from "../lib/types";
 const VENUES = [
   { id: "primer_piso", label: "Primer Piso", icon: "🏢" },
   { id: "restaurant", label: "Restaurant", icon: "🍽️" },
